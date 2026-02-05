@@ -1,0 +1,61 @@
+### Cloud Testing for GitHub Copilot SDK Azure Functions
+### Deployed to Azure Functions
+
+@baseUrl = 
+
+### Function key (Get from Azure Portal or CLI)
+@defaultKey = 
+
+### ============================================
+### ENDPOINTS
+### ============================================
+
+### Chat - Basic prompt
+POST {{baseUrl}}/agent/chat?code={{defaultKey}}
+Content-Type: application/json
+
+{
+    "prompt": "What is Azure Functions?"
+}
+
+### Chat - Code question
+POST {{baseUrl}}/agent/chat?code={{defaultKey}}
+Content-Type: application/json
+
+{
+    "prompt": "Write a Python function to calculate fibonacci numbers"
+}
+
+### Chat - With custom timeout
+POST {{baseUrl}}/agent/chat?code={{defaultKey}}
+Content-Type: application/json
+
+{
+    "prompt": "Explain the difference between async and sync programming",
+    "timeout": 60
+}
+
+### ============================================
+### TIPS FOR GETTING FUNCTION KEYS
+### ============================================
+###
+### Option 1: Azure Portal
+###   1. Go to your Function App
+###   2. Click "Functions" in left menu
+###   3. Click on a specific function (e.g., "chat")
+###   4. Click "Function Keys"
+###   5. Copy the "default" key or create a new one
+###
+### Option 2: Azure CLI
+###   az functionapp function keys list \
+###     --name vameru-ghcp-sdk-test \
+###     --resource-group <your-resource-group> \
+###     --function-name chat
+###
+### Option 3: Azure Functions Core Tools
+###   func azure functionapp list-functions vameru-ghcp-sdk-test --show-keys
+###
+### Option 4: Use Host Key (master key for all functions)
+###   Found in: Portal > Function App > App Keys > _master
+###   ⚠️  Not recommended for production - use function-specific keys
+###

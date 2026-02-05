@@ -1,0 +1,40 @@
+### Local Testing for GitHub Copilot SDK Azure Functions
+### Run with: func start
+### Base URL: http://localhost:7071
+
+@baseUrl = http://localhost:7071
+
+### ============================================
+### ENDPOINTS
+### ============================================
+
+### Health Check
+GET {{baseUrl}}/health
+
+### Auth Status - Check if GITHUB_TOKEN is configured
+GET {{baseUrl}}/agent/auth-status
+
+### Chat - Basic prompt
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+    "prompt": "What tools do you have?"
+}
+
+### Chat - Code question
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+    "prompt": "What are the different agent types in Foundry?"
+}
+
+### Chat - With custom timeout
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+    "prompt": "Explain the difference between async and sync programming",
+    "timeout": 60
+}

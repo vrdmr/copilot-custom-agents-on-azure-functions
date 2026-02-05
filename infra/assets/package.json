@@ -1,0 +1,17 @@
+{
+  "name": "copilot-cli-bundle",
+  "version": "1.0.0",
+  "description": "Bundled Copilot CLI for Azure Functions",
+  "scripts": {
+    "install:linux": "npm install --os=linux --cpu=x64",
+    "install:macos": "npm install @github/copilot-darwin-arm64",
+    "install:local": "npm install",
+    "prepack": "npm run install:linux"
+  },
+  "dependencies": {
+    "@github/copilot": "^0.0.402"
+  },
+  "optionalDependencies": {
+    "@github/copilot-darwin-arm64": "^0.0.402"
+  }
+}

@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: ghcopilot-sdk-on-azure-functions
+hooks:
+  prepackage:
+    shell: sh
+    run: ./infra/hooks/prepackage.sh
+  postpackage:
+    shell: sh
+    run: rm -rf ./infra/tmp
+services:
+  api:
+    project: ./infra/tmp
+    language: python
+    host: function

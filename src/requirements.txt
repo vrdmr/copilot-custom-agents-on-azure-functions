@@ -1,0 +1,4 @@
+# OPTIONAL: only needed if a tool requires extra dependencies
+
+# Pydantic for tool parameter validation
+pydantic>=2.0.0
