@@ -1,4 +1,4 @@
-### Local Testing for GitHub Copilot SDK Azure Functions
+### Local Testing for NFL Analyst Agent
 ### Run with: func start
 ### Base URL: http://localhost:7071
 
@@ -14,27 +14,42 @@ GET {{baseUrl}}/health
 ### Auth Status - Check if GITHUB_TOKEN is configured
 GET {{baseUrl}}/agent/auth-status
 
-### Chat - Basic prompt
+### Chat - Ask about the Super Bowl
 POST {{baseUrl}}/agent/chat
 Content-Type: application/json
 
 {
-    "prompt": "What tools do you have?"
+    "prompt": "Who is playing in the Super Bowl this year?"
 }
 
-### Chat - Code question
+### Chat - Team comparison
 POST {{baseUrl}}/agent/chat
 Content-Type: application/json
 
 {
-    "prompt": "What are the different agent types in Foundry?"
+    "prompt": "Compare the Chiefs and Eagles head to head"
 }
 
-### Chat - With custom timeout
+### Chat - Prediction
 POST {{baseUrl}}/agent/chat
 Content-Type: application/json
 
 {
-    "prompt": "Explain the difference between async and sync programming",
-    "timeout": 60
+    "prompt": "Who do you think wins the Super Bowl and why?"
+}
+
+### Chat - Stats deep dive
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+    "prompt": "Show me the current NFL standings"
+}
+
+### Chat - How is this built?
+POST {{baseUrl}}/agent/chat
+Content-Type: application/json
+
+{
+    "prompt": "How are you deployed? What Azure services power this agent?"
 }

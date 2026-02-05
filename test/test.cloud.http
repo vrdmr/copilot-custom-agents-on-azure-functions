@@ -1,38 +1,43 @@
-### Cloud Testing for GitHub Copilot SDK Azure Functions
+### Cloud Testing for NFL Analyst Agent
 ### Deployed to Azure Functions
 
 @baseUrl = 
-
-### Function key (Get from Azure Portal or CLI)
 @defaultKey = 
 
 ### ============================================
 ### ENDPOINTS
 ### ============================================
 
-### Chat - Basic prompt
+### Chat - Super Bowl question
 POST {{baseUrl}}/agent/chat?code={{defaultKey}}
 Content-Type: application/json
 
 {
-    "prompt": "What is Azure Functions?"
+    "prompt": "Who is playing in the Super Bowl this year?"
 }
 
-### Chat - Code question
+### Chat - Team matchup
 POST {{baseUrl}}/agent/chat?code={{defaultKey}}
 Content-Type: application/json
 
 {
-    "prompt": "Write a Python function to calculate fibonacci numbers"
+    "prompt": "Compare the Chiefs and Eagles — who has the edge?"
 }
 
-### Chat - With custom timeout
+### Chat - Prediction
 POST {{baseUrl}}/agent/chat?code={{defaultKey}}
 Content-Type: application/json
 
 {
-    "prompt": "Explain the difference between async and sync programming",
-    "timeout": 60
+    "prompt": "Give me your Super Bowl prediction with a score"
+}
+
+### Chat - Azure architecture
+POST {{baseUrl}}/agent/chat?code={{defaultKey}}
+Content-Type: application/json
+
+{
+    "prompt": "How is this agent deployed on Azure Functions?"
 }
 
 ### ============================================

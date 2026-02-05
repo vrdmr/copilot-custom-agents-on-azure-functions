@@ -3,6 +3,11 @@
 		"microsoft-learn": {
 			"url": "https://learn.microsoft.com/api/mcp",
 			"type": "http"
+		},
+		"espn": {
+			"type": "stdio",
+			"command": "npx",
+			"args": ["-y", "espn-mcp-server@latest"]
 		}
 	},
 	"inputs": []
