@@ -1,13 +1,8 @@
 {
 	"servers": {
-		"microsoft-learn": {
-			"url": "https://learn.microsoft.com/api/mcp",
+		"sports": {
+			"url": "https://func-mcp-ymtkk7yx5ahp4.azurewebsites.net/mcp",
 			"type": "http"
-		},
-		"espn": {
-			"type": "stdio",
-			"command": "npx",
-			"args": ["-y", "espn-mcp-server@latest"]
 		}
 	},
 	"inputs": []

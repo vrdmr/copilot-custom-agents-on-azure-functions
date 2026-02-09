@@ -30,9 +30,22 @@ That's it. Your agent's instructions from `AGENTS.md`, skills from `.github/skil
 
 ## Running in the Cloud
 
+### Prerequisites: Create a GitHub Personal Access Token
+
+The cloud runtime requires a GitHub token with Copilot permissions:
+
+1. Go to https://github.com/settings/personal-access-tokens/new
+2. Under **Permissions**, click **+ Add permissions**
+3. In the **Select account permissions** dropdown, check **Copilot Requests** (Read-only)
+4. Click **Generate token** and save it securely
+
+### Deploy with Azure Developer CLI
+
 ```bash
 azd up
 ```
+
+When prompted, enter your GitHub Personal Access Token. This token will be securely stored in Azure and used by the runtime to authenticate with GitHub Copilot.
 
 The Azure Developer CLI deploys your agent to Azure Functions. Behind the scenes, your Copilot project is automatically transformed into a cloud-hosted agent endpoint — but you don't need to know or care about those details.
 
