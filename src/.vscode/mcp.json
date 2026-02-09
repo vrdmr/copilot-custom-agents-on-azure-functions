@@ -3,6 +3,7 @@
 		"sports": {
 			"url": "https://func-mcp-ymtkk7yx5ahp4.azurewebsites.net/mcp",
 			"type": "http"
+			// Deployed from https://github.com/anthonychu/espn-mcp/tree/azure-functions
 		}
 	},
 	"inputs": []
