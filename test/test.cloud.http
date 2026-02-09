@@ -32,14 +32,6 @@ Content-Type: application/json
     "prompt": "Give me your Super Bowl prediction with a score"
 }
 
-### Chat - Azure architecture
-POST {{baseUrl}}/agent/chat?code={{defaultKey}}
-Content-Type: application/json
-
-{
-    "prompt": "How is this agent deployed on Azure Functions?"
-}
-
 ### ============================================
 ### TIPS FOR GETTING FUNCTION KEYS
 ### ============================================
