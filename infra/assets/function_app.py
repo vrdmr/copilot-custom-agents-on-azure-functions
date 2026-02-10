@@ -37,6 +37,7 @@ async def chat(req: func.HttpRequest) -> func.HttpResponse:
             json.dumps(
                 {
                     "response": result.content,
+                    "response_intermediate": result.content_intermediate,
                     "tool_calls": result.tool_calls,
                 }
             ),

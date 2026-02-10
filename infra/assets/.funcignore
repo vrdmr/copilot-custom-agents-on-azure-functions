@@ -2,7 +2,6 @@
 .git*
 
 # IDE
-.vscode/
 .idea/
 
 # Azurite (local Azure Storage emulator)

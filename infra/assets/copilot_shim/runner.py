@@ -17,6 +17,7 @@ DEFAULT_TIMEOUT = 60.0
 @dataclass
 class AgentResult:
     content: str
+    content_intermediate: List[str]
     tool_calls: List[Dict[str, Any]]
     reasoning: Optional[str] = None
     events: List[Dict[str, Any]] = field(default_factory=list)
@@ -118,7 +119,8 @@ async def run_copilot_agent(
         await session.destroy()
 
     return AgentResult(
-        content="".join(response_content),
+        content=response_content[-1] if response_content else "",
+        content_intermediate=response_content[:-1] if len(response_content) > 1 else [],
         tool_calls=tool_calls,
         reasoning="".join(reasoning_content) if reasoning_content else None,
         events=events_log,
