@@ -22,7 +22,7 @@ Content-Type: application/json
 ### Step 1: Start a new session with a known ID
 ### Note the session_id in the response body and x-ms-session-id response header
 
-@sessionId = test-local-session-001
+@sessionId = to-be-filled
 
 ### Chat - Create a new session with a specific ID
 POST {{baseUrl}}/agent/chat
@@ -30,7 +30,7 @@ Content-Type: application/json
 x-ms-session-id: {{sessionId}}
 
 {
-    "prompt": "Who is playing in the Super Bowl this year?"
+    "prompt": "What was my previous question?"
 }
 
 ### Step 2: Resume the same session to continue the conversation

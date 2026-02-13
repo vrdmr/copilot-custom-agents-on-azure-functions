@@ -12,7 +12,7 @@ from .mcp import get_cached_mcp_servers
 from .skills import resolve_session_directory_for_skills
 from .tools import _REGISTERED_TOOLS_CACHE
 
-DEFAULT_TIMEOUT = 60.0
+DEFAULT_TIMEOUT = 120.0
 
 
 @dataclass
@@ -165,7 +165,7 @@ async def run_copilot_agent(
     return AgentResult(
         session_id=session.session_id,
         content=response_content[-1] if response_content else "",
-        content_intermediate=response_content[:-1] if len(response_content) > 1 else [],
+        content_intermediate=response_content[-6:-1] if len(response_content) > 1 else [],
         tool_calls=tool_calls,
         reasoning="".join(reasoning_content) if reasoning_content else None,
         events=events_log,
