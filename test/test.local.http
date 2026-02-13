@@ -5,14 +5,8 @@
 @baseUrl = http://localhost:7071
 
 ### ============================================
-### ENDPOINTS
+### CHAT ENDPOINT
 ### ============================================
-
-### Health Check
-GET {{baseUrl}}/health
-
-### Auth Status - Check if GITHUB_TOKEN is configured
-GET {{baseUrl}}/agent/auth-status
 
 ### Chat - Ask about the Super Bowl
 POST {{baseUrl}}/agent/chat
@@ -22,34 +16,37 @@ Content-Type: application/json
     "prompt": "Who is playing in the Super Bowl this year?"
 }
 
-### Chat - Team comparison
+### ============================================
+### SESSION RESUME EXAMPLES
+### ============================================
+### Step 1: Start a new session with a known ID
+### Note the session_id in the response body and x-ms-session-id response header
+
+@sessionId = test-local-session-001
+
+### Chat - Create a new session with a specific ID
 POST {{baseUrl}}/agent/chat
 Content-Type: application/json
+x-ms-session-id: {{sessionId}}
 
 {
-    "prompt": "Compare the Chiefs and Eagles head to head"
+    "prompt": "Who is playing in the Super Bowl this year?"
 }
 
-### Chat - Prediction
+### Step 2: Resume the same session to continue the conversation
 POST {{baseUrl}}/agent/chat
 Content-Type: application/json
+x-ms-session-id: {{sessionId}}
 
 {
-    "prompt": "Who do you think wins the Super Bowl and why?"
+    "prompt": "What did we just discuss?"
 }
 
-### Chat - Stats deep dive
+### Step 3: Ask a follow-up in the same session
 POST {{baseUrl}}/agent/chat
 Content-Type: application/json
+x-ms-session-id: {{sessionId}}
 
 {
-    "prompt": "Show me the current NFL standings"
-}
-
-### Chat - How is this built?
-POST {{baseUrl}}/agent/chat
-Content-Type: application/json
-
-{
-    "prompt": "How are you deployed? What Azure services power this agent?"
+    "prompt": "Based on what you told me, who do you think wins?"
 }

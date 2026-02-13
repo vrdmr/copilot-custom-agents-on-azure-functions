@@ -16,6 +16,9 @@ async def chat(req: func.HttpRequest) -> func.HttpResponse:
     Chat endpoint - send a prompt, get a response.
 
     POST /agent/chat
+    Headers:
+        x-ms-session-id (optional): Session ID for resuming a previous session
+    Body:
     {
         "prompt": "What is 2+2?"
     }
@@ -31,18 +34,22 @@ async def chat(req: func.HttpRequest) -> func.HttpResponse:
                 mimetype="application/json",
             )
 
-        result = await run_copilot_agent(prompt)
+        session_id = req.headers.get("x-ms-session-id")
+        result = await run_copilot_agent(prompt, session_id=session_id)
 
-        return func.HttpResponse(
+        response = func.HttpResponse(
             json.dumps(
                 {
+                    "session_id": result.session_id,
                     "response": result.content,
                     "response_intermediate": result.content_intermediate,
                     "tool_calls": result.tool_calls,
                 }
             ),
             mimetype="application/json",
+            headers={"x-ms-session-id": result.session_id},
         )
+        return response
 
     except Exception as e:
         error_msg = str(e) if str(e) else f"{type(e).__name__}: {repr(e)}"
