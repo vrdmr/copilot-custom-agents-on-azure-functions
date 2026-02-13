@@ -63,6 +63,34 @@ param principalId string = ''
 @secure()
 param githubToken string
 
+param aiFoundryName string = ''
+
+@description('AI Foundry model to deploy. Leave empty to skip Foundry deployment.')
+@allowed([
+  ''
+  'gpt-4.1'
+  'gpt-4.1-mini'
+  'gpt-4.1-nano'
+  'gpt-4o'
+  'gpt-4o-mini'
+  'gpt-5-mini'
+  'gpt-5-nano'
+  'gpt-5-chat'
+  'gpt-5.1-codex-mini'
+  'gpt-5.1-chat'
+  'gpt-5.2-chat'
+  'codex-mini'
+  'o1'
+  'o3-mini'
+  'o4-mini'
+  'claude-sonnet-4-5'
+  'claude-opus-4-6'
+  'claude-haiku-4-5'
+])
+param aiFoundryModel string
+
+var deployFoundry = !empty(aiFoundryModel)
+
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -122,10 +150,17 @@ module api './app/api.bicep' = {
     deploymentStorageContainerName: deploymentStorageContainerName
     identityId: apiUserAssignedIdentity.outputs.resourceId
     identityClientId: apiUserAssignedIdentity.outputs.clientId
-    appSettings: {
-      GITHUB_TOKEN: githubToken
-      ENABLE_MULTIPLATFORM_BUILD: 'true'
-    }
+    appSettings: union(
+      {
+        GITHUB_TOKEN: githubToken
+        ENABLE_MULTIPLATFORM_BUILD: 'true'
+      },
+      deployFoundry ? {
+        AZURE_AI_FOUNDRY_ENDPOINT: foundryOpenAIEndpoint
+        AZURE_AI_FOUNDRY_API_KEY: foundryApiKey
+        AZURE_AI_FOUNDRY_MODEL: foundryModelDeployment
+      } : {}
+    )
     virtualNetworkSubnetId: vnetEnabled ? serviceVirtualNetwork.outputs.appSubnetID : ''
   }
 }
@@ -231,9 +266,28 @@ module monitoring 'br/public:avm/res/insights/component:0.4.1' = {
   }
 }
 
+// AI Foundry account, project, and model deployment
+module foundry './app/foundry.bicep' = if (deployFoundry) {
+  name: 'foundry'
+  scope: rg
+  params: {
+    aiFoundryName: !empty(aiFoundryName) ? aiFoundryName : '${abbrs.cognitiveServicesAccounts}${resourceToken}'
+    tags: tags
+    model: aiFoundryModel
+  }
+}
+
+var foundryOpenAIEndpoint = foundry.?outputs.?aiFoundryOpenAIEndpoint ?? ''
+var foundryApiKey = foundry.?outputs.?aiFoundryApiKey ?? ''
+var foundryModelDeployment = foundry.?outputs.?modelDeploymentName ?? ''
+
 // App outputs
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.connectionString
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
 output SERVICE_API_NAME string = api.outputs.SERVICE_API_NAME
 output AZURE_FUNCTION_NAME string = api.outputs.SERVICE_API_NAME
+output AI_FOUNDRY_NAME string = foundry.?outputs.?aiFoundryName ?? ''
+output AI_FOUNDRY_ENDPOINT string = foundry.?outputs.?aiFoundryEndpoint ?? ''
+output AI_FOUNDRY_PROJECT_NAME string = foundry.?outputs.?aiProjectName ?? ''
+output AI_FOUNDRY_MODEL_DEPLOYMENT_NAME string = foundryModelDeployment

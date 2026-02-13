@@ -16,6 +16,9 @@
     },
     "githubToken": {
       "value": "${GITHUB_TOKEN}"
+    },
+    "aiFoundryModel": {
+      "value": "${AZURE_AI_FOUNDRY_MODEL}"
     }
   }
 }

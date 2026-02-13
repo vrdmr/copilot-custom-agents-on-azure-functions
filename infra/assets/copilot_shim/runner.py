@@ -6,12 +6,12 @@ from typing import Any, Dict, List, Optional
 
 from copilot import SessionConfig
 
-from .client_manager import CopilotClientManager
+from .client_manager import CopilotClientManager, _is_byok_mode
 from .mcp import get_cached_mcp_servers
 from .skills import resolve_session_directory_for_skills
 from .tools import _REGISTERED_TOOLS_CACHE
 
-DEFAULT_TIMEOUT = 60.0
+DEFAULT_TIMEOUT = 200.0
 
 
 @dataclass
@@ -56,6 +56,22 @@ def _build_session_config(model: str = DEFAULT_MODEL) -> SessionConfig:
         "tools": _REGISTERED_TOOLS_CACHE,  # type: ignore
         "system_message": {"mode": "replace", "content": _AGENTS_MD_CONTENT_CACHE},
     }
+
+    # If Azure AI Foundry BYOK is configured, add provider config
+    if _is_byok_mode():
+        foundry_endpoint = os.environ["AZURE_AI_FOUNDRY_ENDPOINT"]
+        foundry_key = os.environ["AZURE_AI_FOUNDRY_API_KEY"]
+        foundry_model = os.environ.get("AZURE_AI_FOUNDRY_MODEL", model)
+        # GPT-5 series models use the responses API format
+        wire_api = "responses" if foundry_model.startswith("gpt-5") else "completions"
+        session_config["model"] = foundry_model  # type: ignore
+        session_config["provider"] = {  # type: ignore
+            "type": "openai",
+            "base_url": foundry_endpoint,
+            "api_key": foundry_key,
+            "wire_api": wire_api,
+        }
+        logging.info(f"BYOK mode: using Azure AI Foundry endpoint={foundry_endpoint}, model={foundry_model}, wire_api={wire_api}")
 
     session_directory = resolve_session_directory_for_skills()
     if session_directory:
