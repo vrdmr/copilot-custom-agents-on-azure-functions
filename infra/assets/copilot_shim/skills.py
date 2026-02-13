@@ -2,9 +2,9 @@ import os
 from typing import Optional
 
 
-def resolve_session_directory_for_skills() -> Optional[str]:
+def resolve_skill_directories() -> Optional[str]:
     """
-    Resolve a session directory that contains common skills locations.
+    Resolve a directory that contains common skills locations.
     """
     cwd = os.getcwd()
     env_session_dir = os.environ.get("COPILOT_SESSION_DIRECTORY")

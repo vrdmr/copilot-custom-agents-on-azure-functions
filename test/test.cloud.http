@@ -1,8 +1,8 @@
 ### Cloud Testing for NFL Analyst Agent
 ### Deployed to Azure Functions
 
-@baseUrl = 
-@defaultKey = 
+@baseUrl = https://func-api-3gipnt7apwb7a.azurewebsites.net
+@defaultKey = YOUR_FUNCTION_KEY_HERE
 
 ### ============================================
 ### CHAT ENDPOINT
@@ -22,7 +22,7 @@ Content-Type: application/json
 ### Step 1: Start a new session with a known ID
 ### Note the session_id in the response body and x-ms-session-id response header
 
-@sessionId = test-cloud-session-001
+@sessionId = 4dcc660d-683a-4109-b76d-b654d194a2a4
 
 ### Chat - Create a new session with a specific ID
 POST {{baseUrl}}/agent/chat?code={{defaultKey}}

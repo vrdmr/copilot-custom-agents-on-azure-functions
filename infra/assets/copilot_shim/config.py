@@ -18,14 +18,15 @@ def resolve_config_dir() -> Optional[str]:
     """
     explicit_path = os.environ.get("CODE_ASSISTANT_CONFIG_PATH")
     if explicit_path:
-        logging.info(f"Using CODE_ASSISTANT_CONFIG_PATH: {explicit_path}")
+        print(f"[Config] Using CODE_ASSISTANT_CONFIG_PATH: {explicit_path}")
         return explicit_path
 
     container_name = os.environ.get("CONTAINER_NAME")
     if container_name:
-        logging.info(f"Remote mode detected (CONTAINER_NAME={container_name}), using {_REMOTE_CONFIG_DIR}")
+        print(f"[Config] Remote mode (CONTAINER_NAME={container_name}), using {_REMOTE_CONFIG_DIR}")
         return _REMOTE_CONFIG_DIR
 
+    print("[Config] No config override, using SDK default")
     return None
 
 
@@ -39,5 +40,5 @@ def session_exists(config_dir: Optional[str], session_id: str) -> bool:
     base = config_dir if config_dir else _DEFAULT_CONFIG_DIR
     session_path = os.path.join(base, "session-state", session_id)
     exists = os.path.isdir(session_path)
-    logging.info(f"Session '{session_id}' exists at {session_path}: {exists}")
+    print(f"[Config] session_exists('{session_id}'): path={session_path}, exists={exists}")
     return exists

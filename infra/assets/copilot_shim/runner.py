@@ -9,7 +9,7 @@ from copilot import ResumeSessionConfig, SessionConfig
 from .client_manager import CopilotClientManager
 from .config import resolve_config_dir, session_exists
 from .mcp import get_cached_mcp_servers
-from .skills import resolve_session_directory_for_skills
+from .skills import resolve_skill_directories
 from .tools import _REGISTERED_TOOLS_CACHE
 
 DEFAULT_TIMEOUT = 120.0
@@ -68,11 +68,12 @@ def _build_session_config(
 
     if config_dir:
         session_config["config_dir"] = config_dir
+        logging.info(f"SessionConfig: config_dir={config_dir}")
 
-    session_directory = resolve_session_directory_for_skills()
-    if session_directory:
-        session_config["config"] = {"sessionDirectory": session_directory}  # type: ignore
-        logging.info(f"Using sessionDirectory for skills discovery: {session_directory}")
+    skill_directory = resolve_skill_directories()
+    if skill_directory:
+        session_config["skill_directories"] = [skill_directory]
+        logging.info(f"Using skill_directories: {skill_directory}")
 
     mcp_servers = get_cached_mcp_servers()
     if mcp_servers:
@@ -94,11 +95,13 @@ def _build_resume_config(
 
     if config_dir:
         resume_config["config_dir"] = config_dir
+        logging.info(f"ResumeSessionConfig: config_dir={config_dir}")
 
     mcp_servers = get_cached_mcp_servers()
     if mcp_servers:
         resume_config["mcp_servers"] = mcp_servers
 
+    logging.info(f"ResumeSessionConfig built with keys: {list(resume_config.keys())}")
     return resume_config
 
 
@@ -109,20 +112,47 @@ async def run_copilot_agent(
     session_id: Optional[str] = None,
 ) -> AgentResult:
     config_dir = resolve_config_dir()
+    print(f"[Session] config_dir={config_dir}, session_id={session_id}")
+
+    # Debug: check what exists at ~/.copilot and at config_dir
+    import pathlib
+    default_copilot = pathlib.Path.home() / ".copilot"
+    default_session_state = default_copilot / "session-state"
+    print(f"[Session] ~/.copilot exists: {default_copilot.exists()}")
+    print(f"[Session] ~/.copilot/session-state exists: {default_session_state.exists()}")
+    if default_session_state.exists():
+        sessions_in_default = list(default_session_state.iterdir())
+        print(f"[Session] Sessions in ~/.copilot/session-state/: {[s.name for s in sessions_in_default[:10]]}")
+    if config_dir:
+        custom_session_state = pathlib.Path(config_dir) / "session-state"
+        print(f"[Session] {config_dir}/session-state exists: {custom_session_state.exists()}")
+        if custom_session_state.exists():
+            sessions_in_custom = list(custom_session_state.iterdir())
+            print(f"[Session] Sessions in {config_dir}/session-state/: {[s.name for s in sessions_in_custom[:10]]}")
+
     client = await CopilotClientManager.get_client()
 
     # Resume existing session or create a new one
     if session_id and session_exists(config_dir, session_id):
-        logging.info(f"Resuming existing session: {session_id}")
+        print(f"[Session] RESUMING session '{session_id}' | config_dir={config_dir} | path={config_dir}/session-state/{session_id}")
         resume_config = _build_resume_config(model=model, config_dir=config_dir)
-        session = await client.resume_session(session_id, resume_config)
+        print(f"[Session] resume_config keys: {list(resume_config.keys())}, config_dir in config: {'config_dir' in resume_config}")
+        try:
+            session = await client.resume_session(session_id, resume_config)
+            print(f"[Session] Resumed OK: {session.session_id}")
+        except Exception as e:
+            print(f"[Session] Resume FAILED for '{session_id}' config_dir={config_dir}: {e}")
+            raise
     else:
+        print(f"[Session] CREATING new session | session_id={session_id} | config_dir={config_dir}")
         if session_id:
-            logging.info(f"Creating new session with provided ID: {session_id}")
+            exists = session_exists(config_dir, session_id)
+            print(f"[Session] session_exists check returned: {exists}")
         session_config = _build_session_config(
             model=model, config_dir=config_dir, session_id=session_id
         )
         session = await client.create_session(session_config)
+        print(f"[Session] Created OK: {session.session_id}")
 
     is_streaming = False  # streaming is always False in current config
 
