@@ -148,6 +148,7 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = 
 resource modelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = {
   parent: aiFoundry
   name: modelName
+  dependsOn: [aiProject]
   sku: {
     capacity: modelSkuCapacity
     name: modelSkuName

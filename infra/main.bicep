@@ -96,6 +96,7 @@ var resourceToken = toLower(uniqueString(subscription().id, environmentName, loc
 var tags = { 'azd-env-name': environmentName }
 var functionAppName = !empty(apiServiceName) ? apiServiceName : '${abbrs.webSitesFunctions}api-${resourceToken}'
 var deploymentStorageContainerName = 'app-package-${take(functionAppName, 32)}-${take(toLower(uniqueString(functionAppName, resourceToken)), 7)}'
+var sessionShareName = 'code-assistant-session'
 
 // Organize resources in a resource group
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -147,7 +148,9 @@ module api './app/api.bicep' = {
     enableBlob: storageEndpointConfig.enableBlob
     enableQueue: storageEndpointConfig.enableQueue
     enableTable: storageEndpointConfig.enableTable
+    enableFile: storageEndpointConfig.enableFiles
     deploymentStorageContainerName: deploymentStorageContainerName
+    sessionShareName: sessionShareName
     identityId: apiUserAssignedIdentity.outputs.resourceId
     identityClientId: apiUserAssignedIdentity.outputs.clientId
     appSettings: union(
@@ -172,7 +175,7 @@ module storage 'br/public:avm/res/storage/storage-account:0.8.3' = {
   params: {
     name: !empty(storageAccountName) ? storageAccountName : '${abbrs.storageStorageAccounts}${resourceToken}'
     allowBlobPublicAccess: false
-    allowSharedKeyAccess: false // Disable local authentication methods as per policy
+    allowSharedKeyAccess: true // Required for Azure Files SMB mount (session state persistence)
     dnsEndpointType: 'Standard'
     publicNetworkAccess: vnetEnabled ? 'Disabled' : 'Enabled'
     networkAcls: vnetEnabled ? {
@@ -185,6 +188,9 @@ module storage 'br/public:avm/res/storage/storage-account:0.8.3' = {
     blobServices: {
       containers: [{name: deploymentStorageContainerName}]
     }
+    fileServices: {
+      shares: [{ name: sessionShareName, shareQuota: 1 }]
+    }
     minimumTlsVersion: 'TLS1_2'  // Enforcing TLS 1.2 for better security
     location: location
     tags: tags
@@ -196,7 +202,7 @@ var storageEndpointConfig = {
   enableBlob: true  // Required for AzureWebJobsStorage, .zip deployment, Event Hubs trigger and Timer trigger checkpointing
   enableQueue: false  // Required for Durable Functions and MCP trigger
   enableTable: false  // Required for Durable Functions and OpenAI triggers and bindings
-  enableFiles: false   // Not required, used in legacy scenarios
+  enableFiles: true    // Required for session state file share mount
   allowUserIdentityPrincipal: true   // Allow interactive user identity to access for testing and debugging
 }
 
@@ -239,6 +245,7 @@ module storagePrivateEndpoint './app/storage-PrivateEndpoint.bicep' = if (vnetEn
     enableBlob: storageEndpointConfig.enableBlob
     enableQueue: storageEndpointConfig.enableQueue
     enableTable: storageEndpointConfig.enableTable
+    enableFile: storageEndpointConfig.enableFiles
   }
 }
 
