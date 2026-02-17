@@ -10,19 +10,14 @@ def get_copilot_cli_path() -> str:
 
     Priority:
     1. COPILOT_CLI_PATH environment variable
-    2. System PATH (via `which copilot`) - best for local development
-    3. Bundled npm package (current platform-specific binary only)
+    2. Bundled npm package (current platform-specific binary only)
+    3. System PATH (via `which copilot`) - fallback for local development
     4. Default 'copilot' (assumes it's in PATH)
     """
     env_path = os.environ.get("COPILOT_CLI_PATH")
     if env_path:
         logging.info(f"Using COPILOT_CLI_PATH: {env_path}")
         return env_path
-
-    system_copilot = shutil.which("copilot")
-    if system_copilot:
-        logging.info(f"Using copilot from system PATH: {system_copilot}")
-        return system_copilot
 
     function_app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     system = platform.system().lower()
@@ -52,6 +47,11 @@ def get_copilot_cli_path() -> str:
     if os.path.exists(bundled_cli):
         logging.info(f"Using bundled Copilot CLI (Node.js): {bundled_cli}")
         return bundled_cli
+
+    system_copilot = shutil.which("copilot")
+    if system_copilot:
+        logging.info(f"Using copilot from system PATH: {system_copilot}")
+        return system_copilot
 
     logging.warning("No copilot CLI found, falling back to 'copilot' command")
     return "copilot"
