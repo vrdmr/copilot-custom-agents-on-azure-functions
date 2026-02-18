@@ -112,7 +112,32 @@ curl -X POST "https://<your-app>.azurewebsites.net/agent/chat?code=<function-key
 
 If you omit `x-ms-session-id`, a new session is created automatically and its ID is returned in the response. See `test/test.cloud.http` for more examples.
 
+### Getting the URL and Function Key
+
+After deployment, get the function app hostname and default key using the Azure CLI:
+
+```bash
+# Get the function app name from azd
+FUNC_NAME=$(azd env get-value AZURE_FUNCTION_NAME)
+
+# Get the resource group
+RG=$(az functionapp list --query "[?name=='$FUNC_NAME'].resourceGroup" -o tsv)
+
+# Get the base URL
+az functionapp show --name "$FUNC_NAME" --resource-group "$RG" --query defaultHostName -o tsv
+
+# Get the default function key
+az functionapp keys list --name "$FUNC_NAME" --resource-group "$RG" --query functionKeys.default -o tsv
+```
+
+Use these values to populate `@baseUrl` and `@defaultKey` in `test/test.cloud.http`.
+
 The Azure Developer CLI deploys your agent to Azure Functions. Behind the scenes, your Copilot project is automatically transformed into a cloud-hosted agent endpoint — but you don't need to know or care about those details.
+
+## Known Limitations
+
+- **Use `azd up`, not `azd provision` + `azd deploy` separately.** The pre-package hook scripts that stage the function app don't run in the correct sequence when provision and deploy are executed independently, resulting in a "folder not found" error during deployment.
+- **Windows is not supported.** The packaging hooks are shell scripts (`.sh`) and do not run on Windows. Use macOS, Linux, or WSL.
 
 ## Why This Matters
 
