@@ -45,9 +45,99 @@ The cloud runtime requires a GitHub token with Copilot permissions:
 azd up
 ```
 
-When prompted, enter your GitHub Personal Access Token. This token will be securely stored in Azure and used by the runtime to authenticate with GitHub Copilot.
+During deployment, you'll be prompted for:
+
+| Prompt | Description |
+|--------|-------------|
+| **GitHub Token** | Your GitHub PAT with Copilot Requests permission (required — see above) |
+| **Azure Location** | Azure region for deployment |
+| **Model Selection** | Which model to use (see below) |
+| **VNet Enabled** | Whether to deploy with VNet integration |
+
+#### Model Selection
+
+You can choose from two categories of models:
+
+- **GitHub models** (`github:` prefix) — Use the GitHub Copilot model API. No additional Azure infrastructure is deployed. Examples: `github:claude-sonnet-4.6`, `github:claude-opus-4.6`, `github:gpt-5.2`
+- **Microsoft Foundry models** (`foundry:` prefix) — Deploys a Microsoft Foundry account and model in your subscription. Examples: `foundry:gpt-4.1-mini`, `foundry:claude-opus-4-6`, `foundry:o4-mini`
+
+To change the model after initial deployment:
+
+```bash
+azd env set MODEL_SELECTION "github:gpt-5.2"
+azd up
+```
+
+### Session Persistence
+
+When running in Azure, agent sessions are automatically persisted to an Azure Files share mounted into the function app. This means conversation state survives across function app restarts and is shared across all instances, enabling multi-turn conversations with session resumption.
+
+Locally, sessions are stored in `~/.copilot/session-state/`.
+
+## Using the API
+
+The agent exposes a single endpoint: `POST /agent/chat`
+
+### Basic Request
+
+```bash
+curl -X POST "https://<your-app>.azurewebsites.net/agent/chat?code=<function-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Who is playing in the Super Bowl this year?"}'
+```
+
+### Response
+
+```json
+{
+  "session_id": "abc123-def456-...",
+  "response": "The agent's final response text",
+  "response_intermediate": "Any intermediate responses",
+  "tool_calls": ["list of tools invoked during the response"]
+}
+```
+
+The response always includes a `session_id` (also returned in the `x-ms-session-id` response header). Use this ID to continue the conversation.
+
+### Multi-Turn Conversations
+
+To resume an existing session, pass the session ID in the `x-ms-session-id` request header:
+
+```bash# Follow-up — resumes the same session with full conversation history
+curl -X POST "https://<your-app>.azurewebsites.net/agent/chat?code=<function-key>" \
+  -H "Content-Type: application/json" \
+  -H "x-ms-session-id: abc123-def456-..." \
+  -d '{"prompt": "What were we just discussing?"}'
+```
+
+If you omit `x-ms-session-id`, a new session is created automatically and its ID is returned in the response. See `test/test.cloud.http` for more examples.
+
+### Getting the URL and Function Key
+
+After deployment, get the function app hostname and default key using the Azure CLI:
+
+```bash
+# Get the function app name from azd
+FUNC_NAME=$(azd env get-value AZURE_FUNCTION_NAME)
+
+# Get the resource group
+RG=$(az functionapp list --query "[?name=='$FUNC_NAME'].resourceGroup" -o tsv)
+
+# Get the base URL
+az functionapp show --name "$FUNC_NAME" --resource-group "$RG" --query defaultHostName -o tsv
+
+# Get the default function key
+az functionapp keys list --name "$FUNC_NAME" --resource-group "$RG" --query functionKeys.default -o tsv
+```
+
+Use these values to populate `@baseUrl` and `@defaultKey` in `test/test.cloud.http`.
 
 The Azure Developer CLI deploys your agent to Azure Functions. Behind the scenes, your Copilot project is automatically transformed into a cloud-hosted agent endpoint — but you don't need to know or care about those details.
+
+## Known Limitations
+
+- **Use `azd up`, not `azd provision` + `azd deploy` separately.** The pre-package hook scripts that stage the function app don't run in the correct sequence when provision and deploy are executed independently, resulting in a "folder not found" error during deployment.
+- **Windows is not supported.** The packaging hooks are shell scripts (`.sh`) and do not run on Windows. Use macOS, Linux, or WSL.
 
 ## Why This Matters
 

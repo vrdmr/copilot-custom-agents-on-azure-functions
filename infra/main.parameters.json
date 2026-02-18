@@ -16,6 +16,9 @@
     },
     "githubToken": {
       "value": "${GITHUB_TOKEN}"
+    },
+    "modelSelection": {
+      "value": "${MODEL_SELECTION}"
     }
   }
 }

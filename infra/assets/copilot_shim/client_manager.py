@@ -8,6 +8,14 @@ from copilot import CopilotClient
 from .cli_path import get_copilot_cli_path
 
 
+def _is_byok_mode() -> bool:
+    """Check if BYO key (Microsoft Foundry) environment variables are configured."""
+    return bool(
+        os.environ.get("AZURE_AI_FOUNDRY_ENDPOINT")
+        and os.environ.get("AZURE_AI_FOUNDRY_API_KEY")
+    )
+
+
 class CopilotClientManager:
     """
     Singleton manager for the CopilotClient.
@@ -30,17 +38,27 @@ class CopilotClientManager:
         async with manager._lock:
             if manager._client is None or not manager._started:
                 cli_path = get_copilot_cli_path()
-                github_token = os.environ.get("GITHUB_TOKEN")
-                print("got github token:", github_token is not None)
-                manager._client = CopilotClient(
-                    {
-                        "cli_path": cli_path,
-                        "github_token": github_token,
-                    }  # type: ignore
-                )
+
+                if _is_byok_mode():
+                    logging.info("BYOK mode: using Microsoft Foundry (no GitHub token)")
+                    manager._client = CopilotClient(
+                        {
+                            "cli_path": cli_path,
+                        }  # type: ignore
+                    )
+                else:
+                    github_token = os.environ.get("GITHUB_TOKEN")
+                    print("got github token:", github_token is not None)
+                    manager._client = CopilotClient(
+                        {
+                            "cli_path": cli_path,
+                            "github_token": github_token,
+                        }  # type: ignore
+                    )
+
                 await manager._client.start()
                 manager._started = True
-                logging.info(f"CopilotClient singleton started (CLI: {cli_path})")
+                logging.info(f"CopilotClient singleton started (CLI: {cli_path}, BYOK: {_is_byok_mode()})")
         return manager._client
 
     @classmethod
