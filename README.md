@@ -1,6 +1,8 @@
 # Cloud Copilot Runtime Demo
 
-This project demonstrates a vision for deploying GitHub Copilot agents to a cloud agent runtime. The core idea is simple: **your agent source code should be portable** — no SDKs, no cloud-specific frameworks, just pure agent definitions that run anywhere. The same agent artifacts: AGENTS.md, skills, and MCP servers runs locally in VS Code Copilot Chat and remotely in a cloud runtime with zero code changes.
+This project demonstrates a vision for deploying GitHub Copilot agents to a cloud agent runtime. The core idea is simple: **your agent source code should be portable** — no SDKs, no cloud-specific frameworks, just pure agent definitions that run anywhere. The same agent artifacts: AGENTS.md, skills, MCP servers, and tools run locally in VS Code Copilot Chat and remotely in a cloud runtime with zero code changes.
+
+This repo includes a **Microsoft expert agent** that helps developers and architects look up Azure pricing, estimate costs, and find answers in official Microsoft Learn documentation.
 
 The workflow is simple:
 
@@ -11,10 +13,14 @@ The workflow is simple:
 ## Project Structure
 
 ```
-src/                    # Your agent - pure Copilot project, no cloud knowledge
-├── AGENTS.md          # Agent instructions and behavior
-├── .github/skills/    # Agent skills
-└── .vscode/mcp.json   # MCP server configurations
+src/                       # Your agent - pure Copilot project, no cloud knowledge
+├── AGENTS.md             # Agent instructions and behavior
+├── .github/skills/
+│   └── azure-pricing/    # Skill: fetch real-time Azure retail pricing
+│       └── SKILL.md
+├── .vscode/mcp.json      # MCP servers (Microsoft Learn)
+└── tools/
+    └── cost_estimator.py # Tool: estimate monthly/annual costs from a unit price
 ```
 
 The `src` folder contains **only** your agent definition. There's no Copilot SDK, no Azure Functions code, no cloud infrastructure concerns. It's just a standard Copilot project.
@@ -83,7 +89,7 @@ The agent exposes a single endpoint: `POST /agent/chat`
 ```bash
 curl -X POST "https://<your-app>.azurewebsites.net/agent/chat?code=<function-key>" \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "Who is playing in the Super Bowl this year?"}'
+  -d '{"prompt": "What is the price of a Standard_D4s_v5 VM in East US?"}'
 ```
 
 ### Response
@@ -107,7 +113,7 @@ To resume an existing session, pass the session ID in the `x-ms-session-id` requ
 curl -X POST "https://<your-app>.azurewebsites.net/agent/chat?code=<function-key>" \
   -H "Content-Type: application/json" \
   -H "x-ms-session-id: abc123-def456-..." \
-  -d '{"prompt": "What were we just discussing?"}'
+  -d '{"prompt": "If I run that VM 24/7 for a month, what would it cost?"}'
 ```
 
 If you omit `x-ms-session-id`, a new session is created automatically and its ID is returned in the response. See `test/test.cloud.http` for more examples.
@@ -136,6 +142,7 @@ The Azure Developer CLI deploys your agent to Azure Functions. Behind the scenes
 
 ## Known Limitations
 
+- **Python tools in `src/tools/` do not work locally.** When running the agent in VS Code, custom Python tools are not loaded — they only run in the cloud runtime. Tools are fully functional after deploying with `azd up`.
 - **Use `azd up`, not `azd provision` + `azd deploy` separately.** The pre-package hook scripts that stage the function app don't run in the correct sequence when provision and deploy are executed independently, resulting in a "folder not found" error during deployment.
 - **Windows is not supported.** The packaging hooks are shell scripts (`.sh`) and do not run on Windows. Use macOS, Linux, or WSL.
 
@@ -150,6 +157,7 @@ This demo illustrates a future where:
 ## Try It
 
 1. Clone this repo
-2. Explore the `src` folder to see a minimal agent definition
+2. Explore the `src` folder to see the agent definition
+3. Open `src` in VS Code and chat with the agent locally (MCP and skills work; Python tools require cloud deployment)
 4. Run `azd up` to deploy to the cloud
 5. Test the cloud endpoint at `/agent/chat` (see `test/test.cloud.http` for examples)

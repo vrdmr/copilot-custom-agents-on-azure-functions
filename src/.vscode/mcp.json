@@ -1,7 +1,7 @@
 {
 	"servers": {
-		"sports": {
-			"url": "https://func-mcp-ymtkk7yx5ahp4.azurewebsites.net/mcp",
+		"microsoft-learn": {
+			"url": "https://learn.microsoft.com/api/mcp",
 			"type": "http"
 		}
 	},
