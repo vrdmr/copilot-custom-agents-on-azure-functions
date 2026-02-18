@@ -63,7 +63,7 @@ def _build_session_config(
         "system_message": {"mode": "replace", "content": _AGENTS_MD_CONTENT_CACHE},
     }
 
-    # If Azure AI Foundry BYOK is configured, add provider config
+    # If Microsoft Foundry BYOK is configured, add provider config
     if _is_byok_mode():
         foundry_endpoint = os.environ["AZURE_AI_FOUNDRY_ENDPOINT"]
         foundry_key = os.environ["AZURE_AI_FOUNDRY_API_KEY"]
@@ -77,7 +77,7 @@ def _build_session_config(
             "api_key": foundry_key,
             "wire_api": wire_api,
         }
-        logging.info(f"BYOK mode: using Azure AI Foundry endpoint={foundry_endpoint}, model={foundry_model}, wire_api={wire_api}")
+        logging.info(f"BYOK mode: using Microsoft Foundry endpoint={foundry_endpoint}, model={foundry_model}, wire_api={wire_api}")
 
     if session_id:
         session_config["session_id"] = session_id

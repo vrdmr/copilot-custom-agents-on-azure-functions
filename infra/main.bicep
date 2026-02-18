@@ -59,37 +59,47 @@ param vNetName string = ''
 @description('Id of the user identity to be used for testing and debugging. This is not required in production. Leave empty if not needed.')
 param principalId string = ''
 
-@description('GitHub Personal Access Token with Copilot Requests permission. Required for the Copilot SDK to authenticate.')
+@description('GitHub Personal Access Token with Copilot Requests permission. Required for the Copilot SDK to authenticate and sign sessions.')
 @secure()
+@minLength(1)
 param githubToken string
 
 param aiFoundryName string = ''
 
-@description('AI Foundry model to deploy. Leave empty to skip Foundry deployment.')
+@description('Model to use. GitHub models run via the Copilot SDK (no extra infra). Foundry models deploy a Microsoft Foundry account + model.')
 @allowed([
-  ''
-  'gpt-4.1'
-  'gpt-4.1-mini'
-  'gpt-4.1-nano'
-  'gpt-4o'
-  'gpt-4o-mini'
-  'gpt-5-mini'
-  'gpt-5-nano'
-  'gpt-5-chat'
-  'gpt-5.1-codex-mini'
-  'gpt-5.1-chat'
-  'gpt-5.2-chat'
-  'codex-mini'
-  'o1'
-  'o3-mini'
-  'o4-mini'
-  'claude-sonnet-4-5'
-  'claude-opus-4-6'
-  'claude-haiku-4-5'
+  // GitHub Copilot models (no additional infrastructure needed)
+  'github:claude-sonnet-4.6'
+  'github:claude-opus-4.6'
+  'github:gpt-5.2'
+  'github:gpt-5.3-codex'
+  // Microsoft Foundry models (deploys Foundry account + model)
+  'foundry:gpt-4.1'
+  'foundry:gpt-4.1-mini'
+  'foundry:gpt-4.1-nano'
+  'foundry:gpt-4o'
+  'foundry:gpt-4o-mini'
+  'foundry:gpt-5-mini'
+  'foundry:gpt-5-nano'
+  'foundry:gpt-5-chat'
+  'foundry:gpt-5.1-codex-mini'
+  'foundry:gpt-5.1-chat'
+  'foundry:gpt-5.2-chat'
+  'foundry:codex-mini'
+  'foundry:o1'
+  'foundry:o3-mini'
+  'foundry:o4-mini'
+  'foundry:claude-sonnet-4-5'
+  'foundry:claude-opus-4-6'
+  'foundry:claude-haiku-4-5'
 ])
-param aiFoundryModel string
+param modelSelection string
 
-var deployFoundry = !empty(aiFoundryModel)
+// Parse the model selection prefix to determine deployment type
+var isFoundryModel = startsWith(modelSelection, 'foundry:')
+var isGitHubModel = startsWith(modelSelection, 'github:')
+var deployFoundry = isFoundryModel
+var selectedModelName = isFoundryModel ? substring(modelSelection, 8) : (isGitHubModel ? substring(modelSelection, 7) : modelSelection)
 
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
@@ -162,6 +172,9 @@ module api './app/api.bicep' = {
         AZURE_AI_FOUNDRY_ENDPOINT: foundryOpenAIEndpoint
         AZURE_AI_FOUNDRY_API_KEY: foundryApiKey
         AZURE_AI_FOUNDRY_MODEL: foundryModelDeployment
+      } : {},
+      isGitHubModel ? {
+        COPILOT_MODEL: selectedModelName
       } : {}
     )
     virtualNetworkSubnetId: vnetEnabled ? serviceVirtualNetwork.outputs.appSubnetID : ''
@@ -273,14 +286,14 @@ module monitoring 'br/public:avm/res/insights/component:0.4.1' = {
   }
 }
 
-// AI Foundry account, project, and model deployment
+// Microsoft Foundry account, project, and model deployment
 module foundry './app/foundry.bicep' = if (deployFoundry) {
   name: 'foundry'
   scope: rg
   params: {
     aiFoundryName: !empty(aiFoundryName) ? aiFoundryName : '${abbrs.cognitiveServicesAccounts}${resourceToken}'
     tags: tags
-    model: aiFoundryModel
+    model: selectedModelName
   }
 }
 

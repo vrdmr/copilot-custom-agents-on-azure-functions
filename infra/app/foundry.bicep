@@ -1,7 +1,7 @@
-@description('Name of the AI Foundry account')
+@description('Name of the Microsoft Foundry account')
 param aiFoundryName string
 
-@description('Name of the AI Foundry project')
+@description('Name of the Microsoft Foundry project')
 param aiProjectName string = '${aiFoundryName}-proj'
 
 @description('Location for the resources. Model catalog is validated against this region.')
@@ -10,38 +10,7 @@ param location string = 'eastus2'
 @description('Tags to apply to the resources')
 param tags object = {}
 
-@description('Model to deploy (GlobalStandard SKU)')
-@allowed([
-  ''
-  // OpenAI
-  'gpt-4.1'
-  'gpt-4.1-mini'
-  'gpt-4.1-nano'
-  'gpt-4o'
-  'gpt-4o-mini'
-  'gpt-5'
-  'gpt-5-chat'
-  'gpt-5-codex'
-  'gpt-5-mini'
-  'gpt-5-nano'
-  'gpt-5-pro'
-  'gpt-5.1'
-  'gpt-5.1-chat'
-  'gpt-5.1-codex'
-  'gpt-5.1-codex-max'
-  'gpt-5.1-codex-mini'
-  'gpt-5.2'
-  'gpt-5.2-chat'
-  'gpt-5.2-codex'
-  'codex-mini'
-  'o1'
-  'o3-mini'
-  'o4-mini'
-  // Anthropic
-  'claude-sonnet-4-5'
-  'claude-opus-4-6'
-  'claude-haiku-4-5'
-])
+@description('Model to deploy (GlobalStandard SKU). Must exist in the modelCatalog variable below.')
 param model string = 'gpt-4.1-mini'
 
 // Model catalog — maps model name to its format and default version
@@ -107,7 +76,7 @@ param modelSkuName string = 'GlobalStandard'
 param modelSkuCapacity int = 200
 
 /*
-  An AI Foundry resource is a variant of a CognitiveServices/account resource type.
+  A Microsoft Foundry resource is a variant of a CognitiveServices/account resource type.
 */
 resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   name: aiFoundryName

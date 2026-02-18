@@ -9,7 +9,7 @@ from .cli_path import get_copilot_cli_path
 
 
 def _is_byok_mode() -> bool:
-    """Check if BYO key (Azure AI Foundry) environment variables are configured."""
+    """Check if BYO key (Microsoft Foundry) environment variables are configured."""
     return bool(
         os.environ.get("AZURE_AI_FOUNDRY_ENDPOINT")
         and os.environ.get("AZURE_AI_FOUNDRY_API_KEY")
@@ -40,7 +40,7 @@ class CopilotClientManager:
                 cli_path = get_copilot_cli_path()
 
                 if _is_byok_mode():
-                    logging.info("BYOK mode: using Azure AI Foundry (no GitHub token)")
+                    logging.info("BYOK mode: using Microsoft Foundry (no GitHub token)")
                     manager._client = CopilotClient(
                         {
                             "cli_path": cli_path,

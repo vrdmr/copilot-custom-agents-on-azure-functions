@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "1784148474901080437"
+      "templateHash": "14617228112198874428"
     }
   },
   "parameters": {
@@ -105,39 +105,44 @@
     },
     "githubToken": {
       "type": "securestring",
+      "minLength": 1,
       "metadata": {
-        "description": "GitHub Personal Access Token with Copilot Requests permission. Required for the Copilot SDK to authenticate."
+        "description": "GitHub Personal Access Token with Copilot Requests permission. Required for the Copilot SDK to authenticate and sign sessions."
       }
     },
     "aiFoundryName": {
       "type": "string",
       "defaultValue": ""
     },
-    "aiFoundryModel": {
+    "modelSelection": {
       "type": "string",
       "allowedValues": [
         "",
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano",
-        "gpt-4o",
-        "gpt-4o-mini",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        "gpt-5-chat",
-        "gpt-5.1-codex-mini",
-        "gpt-5.1-chat",
-        "gpt-5.2-chat",
-        "codex-mini",
-        "o1",
-        "o3-mini",
-        "o4-mini",
-        "claude-sonnet-4-5",
-        "claude-opus-4-6",
-        "claude-haiku-4-5"
+        "github:claude-sonnet-4.6",
+        "github:claude-opus-4.6",
+        "github:gpt-5.2",
+        "github:gpt-5.3-codex",
+        "foundry:gpt-4.1",
+        "foundry:gpt-4.1-mini",
+        "foundry:gpt-4.1-nano",
+        "foundry:gpt-4o",
+        "foundry:gpt-4o-mini",
+        "foundry:gpt-5-mini",
+        "foundry:gpt-5-nano",
+        "foundry:gpt-5-chat",
+        "foundry:gpt-5.1-codex-mini",
+        "foundry:gpt-5.1-chat",
+        "foundry:gpt-5.2-chat",
+        "foundry:codex-mini",
+        "foundry:o1",
+        "foundry:o3-mini",
+        "foundry:o4-mini",
+        "foundry:claude-sonnet-4-5",
+        "foundry:claude-opus-4-6",
+        "foundry:claude-haiku-4-5"
       ],
       "metadata": {
-        "description": "AI Foundry model to deploy. Leave empty to skip Foundry deployment."
+        "description": "Model to use. GitHub models run via the Copilot SDK (no extra infra). Foundry models deploy an Azure AI Foundry account + model. Leave empty to use the SDK default (claude-sonnet-4)."
       }
     }
   },
@@ -277,7 +282,10 @@
       "webSitesFunctions": "func-",
       "webStaticSites": "stapp-"
     },
-    "deployFoundry": "[not(empty(parameters('aiFoundryModel')))]",
+    "isFoundryModel": "[startsWith(parameters('modelSelection'), 'foundry:')]",
+    "isGitHubModel": "[startsWith(parameters('modelSelection'), 'github:')]",
+    "deployFoundry": "[variables('isFoundryModel')]",
+    "selectedModelName": "[if(variables('isFoundryModel'), substring(parameters('modelSelection'), 8), if(variables('isGitHubModel'), substring(parameters('modelSelection'), 7), parameters('modelSelection')))]",
     "abbrs": "[variables('$fxv#0')]",
     "resourceToken": "[toLower(uniqueString(subscription().id, parameters('environmentName'), parameters('location')))]",
     "tags": {
@@ -1352,7 +1360,7 @@
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))), 'Microsoft.Resources/deployments', 'apiUserAssignedIdentity'), '2025-04-01').outputs.clientId.value]"
           },
           "appSettings": {
-            "value": "[union(createObject('GITHUB_TOKEN', parameters('githubToken'), 'ENABLE_MULTIPLATFORM_BUILD', 'true'), if(variables('deployFoundry'), createObject('AZURE_AI_FOUNDRY_ENDPOINT', coalesce(tryGet(tryGet(tryGet(if(variables('deployFoundry'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))), 'Microsoft.Resources/deployments', 'foundry'), '2025-04-01'), null()), 'outputs'), 'aiFoundryOpenAIEndpoint'), 'value'), ''), 'AZURE_AI_FOUNDRY_API_KEY', coalesce(tryGet(tryGet(tryGet(if(variables('deployFoundry'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))), 'Microsoft.Resources/deployments', 'foundry'), '2025-04-01'), null()), 'outputs'), 'aiFoundryApiKey'), 'value'), ''), 'AZURE_AI_FOUNDRY_MODEL', coalesce(tryGet(tryGet(tryGet(if(variables('deployFoundry'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))), 'Microsoft.Resources/deployments', 'foundry'), '2025-04-01'), null()), 'outputs'), 'modelDeploymentName'), 'value'), '')), createObject()))]"
+            "value": "[union(createObject('GITHUB_TOKEN', parameters('githubToken'), 'ENABLE_MULTIPLATFORM_BUILD', 'true'), if(variables('deployFoundry'), createObject('AZURE_AI_FOUNDRY_ENDPOINT', coalesce(tryGet(tryGet(tryGet(if(variables('deployFoundry'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))), 'Microsoft.Resources/deployments', 'foundry'), '2025-04-01'), null()), 'outputs'), 'aiFoundryOpenAIEndpoint'), 'value'), ''), 'AZURE_AI_FOUNDRY_API_KEY', coalesce(tryGet(tryGet(tryGet(if(variables('deployFoundry'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))), 'Microsoft.Resources/deployments', 'foundry'), '2025-04-01'), null()), 'outputs'), 'aiFoundryApiKey'), 'value'), ''), 'AZURE_AI_FOUNDRY_MODEL', coalesce(tryGet(tryGet(tryGet(if(variables('deployFoundry'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))), 'Microsoft.Resources/deployments', 'foundry'), '2025-04-01'), null()), 'outputs'), 'modelDeploymentName'), 'value'), '')), createObject()), if(variables('isGitHubModel'), createObject('COPILOT_MODEL', variables('selectedModelName')), createObject()))]"
           },
           "virtualNetworkSubnetId": "[if(parameters('vnetEnabled'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))), 'Microsoft.Resources/deployments', 'serviceVirtualNetwork'), '2025-04-01').outputs.appSubnetID.value), createObject('value', ''))]"
         },
@@ -32040,7 +32048,7 @@
             "value": "[variables('tags')]"
           },
           "model": {
-            "value": "[parameters('aiFoundryModel')]"
+            "value": "[variables('selectedModelName')]"
           }
         },
         "template": {
@@ -32050,7 +32058,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "11084657882713752164"
+              "templateHash": "13665729035861351288"
             }
           },
           "parameters": {
@@ -32084,37 +32092,8 @@
             "model": {
               "type": "string",
               "defaultValue": "gpt-4.1-mini",
-              "allowedValues": [
-                "",
-                "gpt-4.1",
-                "gpt-4.1-mini",
-                "gpt-4.1-nano",
-                "gpt-4o",
-                "gpt-4o-mini",
-                "gpt-5",
-                "gpt-5-chat",
-                "gpt-5-codex",
-                "gpt-5-mini",
-                "gpt-5-nano",
-                "gpt-5-pro",
-                "gpt-5.1",
-                "gpt-5.1-chat",
-                "gpt-5.1-codex",
-                "gpt-5.1-codex-max",
-                "gpt-5.1-codex-mini",
-                "gpt-5.2",
-                "gpt-5.2-chat",
-                "gpt-5.2-codex",
-                "codex-mini",
-                "o1",
-                "o3-mini",
-                "o4-mini",
-                "claude-sonnet-4-5",
-                "claude-opus-4-6",
-                "claude-haiku-4-5"
-              ],
               "metadata": {
-                "description": "Model to deploy (GlobalStandard SKU)"
+                "description": "Model to deploy (GlobalStandard SKU). Must exist in the modelCatalog variable below."
               }
             },
             "modelSkuName": {
@@ -32381,7 +32360,8 @@
                 }
               },
               "dependsOn": [
-                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]"
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]",
+                "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('aiFoundryName'), parameters('aiProjectName'))]"
               ]
             }
           ],
