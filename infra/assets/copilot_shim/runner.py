@@ -6,11 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from copilot import ResumeSessionConfig, SessionConfig
 
-<<<<<<< antchu/add-foundry
 from .client_manager import CopilotClientManager, _is_byok_mode
-=======
-from .client_manager import CopilotClientManager
->>>>>>> main
 from .config import resolve_config_dir, session_exists
 from .mcp import get_cached_mcp_servers
 from .skills import resolve_session_directory_for_skills
@@ -67,7 +63,6 @@ def _build_session_config(
         "system_message": {"mode": "replace", "content": _AGENTS_MD_CONTENT_CACHE},
     }
 
-<<<<<<< antchu/add-foundry
     # If Microsoft Foundry BYOK is configured, add provider config
     if _is_byok_mode():
         foundry_endpoint = os.environ["AZURE_AI_FOUNDRY_ENDPOINT"]
@@ -84,8 +79,6 @@ def _build_session_config(
         }
         logging.info(f"BYOK mode: using Microsoft Foundry endpoint={foundry_endpoint}, model={foundry_model}, wire_api={wire_api}")
 
-=======
->>>>>>> main
     if session_id:
         session_config["session_id"] = session_id
 
