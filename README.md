@@ -11,6 +11,7 @@ This repo demonstrates an experimental new runtime that lets you deploy the same
 - Deploy markdown-based agents as an Azure Functions app
 - Choose from GitHub models or Microsoft Foundry models to power your agent
 - Built-in HTTP API for chatting with your agent (`POST /agent/chat`)
+- Built-in MCP server endpoint for remote MCP clients (`/runtime/webhooks/mcp`)
 - Built-in single-page chat UI
 - Automatic session persistence with Azure Files
 - Run prompts on a schedule using timer triggers
@@ -200,6 +201,61 @@ https://<your-app>.azurewebsites.net/#baseUrl=https%3A%2F%2F<your-app>.azurewebs
 ```
 
 On load, the page reads and stores these values, then removes the hash from the address bar.
+
+## Using MCP Server
+
+The function app also exposes an MCP server endpoint:
+
+```text
+https://<your-app>.azurewebsites.net/runtime/webhooks/mcp
+```
+
+By default, this endpoint requires the MCP extension system key in the `x-functions-key` header.
+
+### Get MCP Extension Key
+
+```bash
+# Get the function app name from azd
+FUNC_NAME=$(azd env get-value AZURE_FUNCTION_NAME)
+
+# Get the resource group
+RG=$(az functionapp list --query "[?name=='$FUNC_NAME'].resourceGroup" -o tsv)
+
+# Get the MCP extension system key
+MCP_KEY=$(az functionapp keys list --name "$FUNC_NAME" --resource-group "$RG" --query systemKeys.mcp_extension -o tsv)
+echo "$MCP_KEY"
+```
+
+### Example VS Code `mcp.json` Configuration (Secure Key Prompt)
+
+Use `inputs` with `password: true` so the MCP key isn't hardcoded in the file.
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "functions-mcp-extension-system-key",
+      "description": "Azure Functions MCP Extension System Key",
+      "password": true
+    },
+    {
+      "type": "promptString",
+      "id": "functionapp-host",
+      "description": "Function app host, e.g. func-api-xxxx.azurewebsites.net"
+    }
+  ],
+  "servers": {
+    "remote-mcp-function": {
+      "type": "http",
+      "url": "https://${input:functionapp-host}/runtime/webhooks/mcp",
+      "headers": {
+        "x-functions-key": "${input:functions-mcp-extension-system-key}"
+      }
+    }
+  }
+}
+```
 
 ## Using the API
 

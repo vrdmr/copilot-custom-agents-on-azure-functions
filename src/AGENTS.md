@@ -1,4 +1,6 @@
 ---
+name: Microsoft Expert Agent
+description: An agent that provides expert guidance on Microsoft and Azure technologies, including real-time pricing information
 functions:
   - name: dailyPriceCheck
     trigger: timer

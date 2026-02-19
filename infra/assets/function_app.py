@@ -15,32 +15,81 @@ from copilot_shim import run_copilot_agent
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
+_MCP_AGENT_TOOL_PROPERTIES = json.dumps(
+    [
+        {
+            "propertyName": "prompt",
+            "propertyType": "string",
+            "description": "Prompt text sent to the agent.",
+            "isRequired": True,
+            "isArray": False,
+        },
+    ]
+)
 
-def _load_agents_functions_from_frontmatter() -> List[Dict[str, Any]]:
-    """Load optional function definitions from AGENTS.md frontmatter."""
+
+def _load_agents_frontmatter_metadata() -> Dict[str, Any]:
+    """Load AGENTS.md frontmatter metadata as a dictionary."""
     agents_md_path = Path(os.getcwd()) / "AGENTS.md"
     if not agents_md_path.exists():
-        logging.info("AGENTS.md not found. No dynamic functions registered.")
-        return []
+        return {}
 
     try:
         raw_content = agents_md_path.read_text(encoding="utf-8")
         parsed = frontmatter.loads(raw_content)
         metadata = parsed.metadata if isinstance(parsed.metadata, dict) else {}
-        functions = metadata.get("functions")
-
-        if functions is None:
-            logging.info("AGENTS.md frontmatter has no 'functions' section. No dynamic functions registered.")
-            return []
-
-        if not isinstance(functions, list):
-            logging.warning("AGENTS.md frontmatter 'functions' must be an array. Ignoring dynamic functions.")
-            return []
-
-        return [item for item in functions if isinstance(item, dict)]
+        return metadata
     except Exception as exc:
         logging.warning(f"Failed to parse AGENTS.md frontmatter: {exc}")
+        return {}
+
+
+def _safe_mcp_tool_name(raw_name: str) -> str:
+    normalized = re.sub(r"[^a-zA-Z0-9_]", "_", raw_name).strip("_").lower()
+    if not normalized:
+        return "agent_chat"
+    if normalized[0].isdigit():
+        return f"agent_{normalized}"
+    return normalized
+
+
+_AGENTS_FRONTMATTER_METADATA = _load_agents_frontmatter_metadata()
+
+_MCP_AGENT_TOOL_NAME = _safe_mcp_tool_name(
+    str(_AGENTS_FRONTMATTER_METADATA.get("name") or "agent_chat")
+)
+
+_MCP_AGENT_TOOL_DESCRIPTION = str(
+    _AGENTS_FRONTMATTER_METADATA.get("description")
+    or "Run an agent chat turn with a prompt."
+).strip() or "Run an agent chat turn with a prompt."
+
+
+def _extract_mcp_session_id(payload: Dict[str, Any]) -> str | None:
+    """Extract MCP session id from top-level context payload only."""
+    value = payload.get("sessionId") or payload.get("sessionid")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _load_agents_functions_from_frontmatter() -> List[Dict[str, Any]]:
+    """Load optional function definitions from AGENTS.md frontmatter."""
+    metadata = _AGENTS_FRONTMATTER_METADATA
+    if not metadata:
+        logging.info("AGENTS.md not found or has no parseable frontmatter. No dynamic functions registered.")
         return []
+
+    functions = metadata.get("functions")
+    if functions is None:
+        logging.info("AGENTS.md frontmatter has no 'functions' section. No dynamic functions registered.")
+        return []
+
+    if not isinstance(functions, list):
+        logging.warning("AGENTS.md frontmatter 'functions' must be an array. Ignoring dynamic functions.")
+        return []
+
+    return [item for item in functions if isinstance(item, dict)]
 
 
 def _normalize_timer_schedule(schedule: str) -> str:
@@ -240,3 +289,37 @@ async def chat(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             json.dumps({"error": error_msg}), status_code=500, mimetype="application/json"
         )
+
+
+@app.mcp_tool_trigger(
+    arg_name="context",
+    tool_name=_MCP_AGENT_TOOL_NAME,
+    description=_MCP_AGENT_TOOL_DESCRIPTION,
+    tool_properties=_MCP_AGENT_TOOL_PROPERTIES,
+)
+async def mcp_agent_chat(context: str) -> str:
+    """MCP tool endpoint that runs the same agent workflow as /agent/chat."""
+    try:
+        payload = json.loads(context) if context else {}
+        arguments = payload.get("arguments", {}) if isinstance(payload, dict) else {}
+
+        prompt = arguments.get("prompt") if isinstance(arguments, dict) else None
+        if not isinstance(prompt, str) or not prompt.strip():
+            return json.dumps({"error": "Missing 'prompt'"})
+
+        session_id = _extract_mcp_session_id(payload) if isinstance(payload, dict) else None
+
+        result = await run_copilot_agent(prompt.strip(), session_id=session_id)
+
+        return json.dumps(
+            {
+                "session_id": result.session_id,
+                "response": result.content,
+                "response_intermediate": result.content_intermediate,
+                "tool_calls": result.tool_calls,
+            }
+        )
+    except Exception as exc:
+        error_msg = str(exc) if str(exc) else f"{type(exc).__name__}: {repr(exc)}"
+        logging.error(f"MCP tool error: {error_msg}")
+        return json.dumps({"error": error_msg})
