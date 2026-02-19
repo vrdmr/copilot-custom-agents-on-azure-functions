@@ -36,6 +36,9 @@ var baseAppSettings = {
   // Application Insights settings are always included
   APPLICATIONINSIGHTS_AUTHENTICATION_STRING: applicationInsightsIdentity
   APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.properties.ConnectionString
+
+  // Enable Python init indexing for faster startup
+  PYTHON_ENABLE_INIT_INDEXING: '1'
 }
 
 // Dynamically build storage endpoint settings based on feature flags
