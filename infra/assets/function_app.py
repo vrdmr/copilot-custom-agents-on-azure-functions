@@ -4,11 +4,34 @@ Azure Functions + GitHub Copilot SDK
 
 import json
 import logging
+from pathlib import Path
 
 import azure.functions as func
 from copilot_shim import run_copilot_agent
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+
+
+@app.route(
+    route="{*ignored}",
+    methods=["GET"],
+    auth_level=func.AuthLevel.ANONYMOUS,
+)
+def root_chat_page(req: func.HttpRequest) -> func.HttpResponse:
+    """Serve the chat UI at the root route."""
+    ignored = (req.route_params or {}).get("ignored", "")
+    if ignored:
+        return func.HttpResponse("Not found", status_code=404)
+
+    index_path = Path(__file__).resolve().parent / "public" / "index.html"
+    if not index_path.exists():
+        return func.HttpResponse("index.html not found", status_code=404)
+
+    return func.HttpResponse(
+        index_path.read_text(encoding="utf-8"),
+        status_code=200,
+        mimetype="text/html",
+    )
 
 @app.route(route="agent/chat", methods=["POST"])
 async def chat(req: func.HttpRequest) -> func.HttpResponse:

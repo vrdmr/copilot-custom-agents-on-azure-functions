@@ -167,6 +167,7 @@ module api './app/api.bicep' = {
       {
         GITHUB_TOKEN: githubToken
         ENABLE_MULTIPLATFORM_BUILD: 'true'
+        AzureWebJobsDisableHomepage: 'true'
       },
       deployFoundry ? {
         AZURE_AI_FOUNDRY_ENDPOINT: foundryOpenAIEndpoint
