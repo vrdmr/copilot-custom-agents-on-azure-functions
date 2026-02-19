@@ -109,10 +109,11 @@ def _build_session_config(
 def _build_resume_config(
     model: str = DEFAULT_MODEL,
     config_dir: Optional[str] = None,
+    streaming: bool = False,
 ) -> ResumeSessionConfig:
     resume_config: ResumeSessionConfig = {
         "model": model,
-        "streaming": False,
+        "streaming": streaming,
         "tools": _REGISTERED_TOOLS_CACHE,  # type: ignore
         "system_message": {"mode": "replace", "content": _AGENTS_MD_CONTENT_CACHE},
     }
@@ -227,7 +228,7 @@ async def run_copilot_agent_stream(
 
     if session_id and session_exists(config_dir, session_id):
         logging.info(f"[stream] Resuming existing session: {session_id}")
-        resume_config = _build_resume_config(model=model, config_dir=config_dir)
+        resume_config = _build_resume_config(model=model, config_dir=config_dir, streaming=True)
         session = await client.resume_session(session_id, resume_config)
     else:
         if session_id:
@@ -252,8 +253,6 @@ async def run_copilot_agent_stream(
                 queue.put_nowait({"type": "intermediate", "content": reasoning_delta})
         elif event_type == "assistant.message":
             message_content = getattr(event.data, "content", "")
-            if isinstance(message_content, str) and message_content.strip():
-                queue.put_nowait({"type": "intermediate", "content": message_content})
             queue.put_nowait({"type": "message", "content": message_content})
         elif event_type == "tool.execution_start":
             queue.put_nowait({

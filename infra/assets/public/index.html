@@ -239,6 +239,10 @@
 			color: var(--muted);
 		}
 
+		.bubble.you .meta {
+			color: rgba(255, 255, 255, 0.92);
+		}
+
 		.composer {
 			border-top: 1px solid var(--border);
 			background: #fff;
@@ -1138,6 +1142,8 @@
 			let doneReceived = false;
 			const intermediateResponses = [];
 			const toolCalls = [];
+			const seenToolStartKeys = new Set();
+			let pendingIntermediateLineBreak = false;
 
 			const handleEvent = (event) => {
 				const type = event?.type;
@@ -1157,12 +1163,19 @@
 
 				if (type === "message" && typeof event.content === "string") {
 					finalMessage = event.content;
+					if (!event.content) {
+						pendingIntermediateLineBreak = true;
+					}
 					return;
 				}
 
 				if (type === "intermediate" && typeof event.content === "string") {
 					const content = event.content;
 					if (content.length > 0) {
+						if (pendingIntermediateLineBreak && intermediateResponses.length > 0) {
+							intermediateResponses.push("\n");
+						}
+						pendingIntermediateLineBreak = false;
 						intermediateResponses.push(content);
 						if (typeof callbacks.onIntermediate === "function") {
 							callbacks.onIntermediate(intermediateResponses.length, intermediateResponses);
@@ -1178,6 +1191,16 @@
 				}
 
 				if (type === "tool_start") {
+					const toolStartKey = [
+						event?.event_id || "",
+						event?.tool_call_id || "",
+						event?.tool_name || ""
+					].join("|");
+					if (seenToolStartKeys.has(toolStartKey)) {
+						return;
+					}
+					seenToolStartKeys.add(toolStartKey);
+
 					toolCalls.push({
 						event_id: event?.event_id || null,
 						tool_name: event?.tool_name || "(unknown tool)",
@@ -1257,8 +1280,17 @@
 				}
 			}
 
+			const finalTrimmed = typeof finalMessage === "string" ? finalMessage.trim() : "";
+			const filteredIntermediateResponses = intermediateResponses.filter((item) => {
+				if (typeof item !== "string") return false;
+				const value = item.trim();
+				if (!value) return false;
+				if (finalTrimmed && value === finalTrimmed) return false;
+				return true;
+			});
+
 			const details = normalizeDetails({
-				responseIntermediate: intermediateResponses,
+				responseIntermediate: filteredIntermediateResponses,
 				toolCalls
 			});
 
