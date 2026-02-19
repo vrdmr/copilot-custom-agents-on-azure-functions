@@ -139,6 +139,29 @@
 			margin-top: 4px;
 		}
 
+		.bubble-intermediates {
+			display: none;
+			margin-top: 8px;
+			padding-top: 8px;
+			border-top: 1px dashed var(--border);
+			font-size: 12px;
+			color: var(--muted);
+		}
+
+		.bubble-intermediates.open {
+			display: block;
+		}
+
+		.bubble-intermediates-title {
+			font-weight: 600;
+			margin-bottom: 4px;
+		}
+
+		.bubble-intermediates-text {
+			white-space: pre-wrap;
+			word-break: break-word;
+		}
+
 		.bubble a {
 			color: inherit;
 			text-decoration: underline;
@@ -491,6 +514,7 @@
 		const detailsBackdropEl = document.getElementById("detailsBackdrop");
 		const detailsContentEl = document.getElementById("detailsContent");
 		const closeDetailsBtnEl = document.getElementById("closeDetailsBtn");
+		let currentDetailsSource = null;
 
 		const defaultBaseUrl = `${location.protocol}//${location.host}`;
 
@@ -746,6 +770,7 @@
 		}
 
 		function showDetails(details) {
+			currentDetailsSource = details;
 			detailsContentEl.innerHTML = "";
 			const normalized = normalizeDetails(details);
 
@@ -809,7 +834,86 @@
 		}
 
 		function hideDetails() {
+			currentDetailsSource = null;
 			detailsBackdropEl.classList.remove("open");
+		}
+
+		function refreshOpenDetails(details) {
+			if (!detailsBackdropEl.classList.contains("open")) return;
+			if (currentDetailsSource !== details) return;
+			showDetails(details);
+		}
+
+		function renderBubbleContent(role, text) {
+			return role === "copilot" ? renderMarkdownBasic(text) : escapeHtml(text);
+		}
+
+		function setBubbleText(bubble, role, text) {
+			const contentEl = bubble.querySelector(".bubble-content");
+			if (!contentEl) return;
+			contentEl.innerHTML = renderBubbleContent(role, text);
+		}
+
+		function setBubbleMeta(bubble, meta = "") {
+			let metaEl = bubble.querySelector(".meta");
+			if (!meta) {
+				if (metaEl) metaEl.remove();
+				return;
+			}
+
+			if (!metaEl) {
+				metaEl = document.createElement("div");
+				metaEl.className = "meta";
+				bubble.appendChild(metaEl);
+			}
+			metaEl.textContent = meta;
+		}
+
+		function setBubbleIntermediates(bubble, responses = []) {
+			const intermediatesEl = bubble.querySelector(".bubble-intermediates");
+			if (!intermediatesEl) return;
+
+			const items = Array.isArray(responses)
+				? responses.filter((item) => typeof item === "string" && item.length > 0)
+				: [];
+
+			if (items.length === 0) {
+				intermediatesEl.classList.remove("open");
+				intermediatesEl.innerHTML = "";
+				return;
+			}
+
+			intermediatesEl.classList.add("open");
+			intermediatesEl.innerHTML = "";
+
+			const title = document.createElement("div");
+			title.className = "bubble-intermediates-title";
+			title.textContent = `Intermediate responses (${items.length})`;
+			intermediatesEl.appendChild(title);
+
+			const text = document.createElement("div");
+			text.className = "bubble-intermediates-text";
+			text.textContent = items.join("");
+			intermediatesEl.appendChild(text);
+		}
+
+		function attachBubbleDetails(bubble, details) {
+			bubble.classList.remove("has-details");
+			bubble.title = "";
+			bubble.onclick = null;
+
+			if (!hasDetails(details)) {
+				return;
+			}
+
+			bubble.classList.add("has-details");
+			bubble.title = "Click to view tool calls and intermediate responses";
+			bubble.onclick = (event) => {
+				if (event.target instanceof Element && event.target.closest("a")) {
+					return;
+				}
+				showDetails(details);
+			};
 		}
 
 		function renderBubble(role, text, meta = "", details = null) {
@@ -818,29 +922,25 @@
 
 			const bubble = document.createElement("div");
 			bubble.className = `bubble ${role}`;
-			bubble.innerHTML = role === "copilot" ? renderMarkdownBasic(text) : escapeHtml(text);
 
-			if (role === "copilot" && hasDetails(details)) {
-				bubble.classList.add("has-details");
-				bubble.title = "Click to view tool calls and intermediate responses";
-				bubble.addEventListener("click", (event) => {
-					if (event.target instanceof Element && event.target.closest("a")) {
-						return;
-					}
-					showDetails(details);
-				});
-			}
+			const contentEl = document.createElement("div");
+			contentEl.className = "bubble-content";
+			contentEl.innerHTML = renderBubbleContent(role, text);
+			bubble.appendChild(contentEl);
 
-			if (meta) {
-				const metaEl = document.createElement("div");
-				metaEl.className = "meta";
-				metaEl.textContent = meta;
-				bubble.appendChild(metaEl);
+			const intermediatesEl = document.createElement("div");
+			intermediatesEl.className = "bubble-intermediates";
+			bubble.appendChild(intermediatesEl);
+
+			setBubbleMeta(bubble, meta);
+			if (role === "copilot") {
+				attachBubbleDetails(bubble, details);
 			}
 
 			wrap.appendChild(bubble);
 			chatEl.appendChild(wrap);
 			scrollToBubbleTop(wrap);
+			return { wrap, bubble, contentEl, intermediatesEl };
 		}
 
 		function renderWaitingBubble() {
@@ -867,13 +967,16 @@
 			document.getElementById("waitingBubble")?.remove();
 		}
 
-		function setLoading(loading) {
+		function setLoading(loading, options = {}) {
+			const showWaitingBubble = options.showWaitingBubble !== false;
 			state.loading = loading;
 			sendBtnEl.disabled = loading;
 			promptInputEl.disabled = loading;
 
 			if (loading) {
-				renderWaitingBubble();
+				if (showWaitingBubble) {
+					renderWaitingBubble();
+				}
 				state.loadingSeconds = 0;
 				setStatus("Waiting for Copilot...");
 				state.loadingTimer = window.setInterval(() => {
@@ -994,10 +1097,11 @@
 			);
 		}
 
-		async function sendMessage(prompt) {
-			const endpoint = `${state.baseUrl}/agent/chat?code=${encodeURIComponent(state.key)}`;
+		async function sendMessage(prompt, callbacks = {}) {
+			const endpoint = `${state.baseUrl}/agent/chatstream?code=${encodeURIComponent(state.key)}`;
 			const headers = {
-				"Content-Type": "application/json"
+				"Content-Type": "application/json",
+				"Accept": "text/event-stream"
 			};
 
 			if (state.sessionId) {
@@ -1010,31 +1114,156 @@
 				body: JSON.stringify({ prompt })
 			});
 
-			const raw = await response.text();
-			let body;
-			try {
-				body = raw ? JSON.parse(raw) : null;
-			} catch {
-				body = raw;
-			}
-
 			if (!response.ok) {
+				const raw = await response.text();
+				let body;
+				try {
+					body = raw ? JSON.parse(raw) : null;
+				} catch {
+					body = raw;
+				}
 				const message = getMessageFromBody(body);
 				throw new Error(`HTTP ${response.status}: ${message}`);
 			}
 
-			const nextSessionId = getSessionId(response, body);
-			if (nextSessionId) {
-				state.sessionId = nextSessionId;
+			if (!response.body) {
+				throw new Error("Streaming response body is empty.");
+			}
+
+			const reader = response.body.getReader();
+			const decoder = new TextDecoder();
+			let buffer = "";
+			let streamText = "";
+			let finalMessage = "";
+			let doneReceived = false;
+			const intermediateResponses = [];
+			const toolCalls = [];
+
+			const handleEvent = (event) => {
+				const type = event?.type;
+
+				if (type === "session" && typeof event.session_id === "string" && event.session_id.trim()) {
+					state.sessionId = event.session_id;
+					return;
+				}
+
+				if (type === "delta" && typeof event.content === "string") {
+					streamText += event.content;
+					if (typeof callbacks.onDelta === "function") {
+						callbacks.onDelta(streamText);
+					}
+					return;
+				}
+
+				if (type === "message" && typeof event.content === "string") {
+					finalMessage = event.content;
+					return;
+				}
+
+				if (type === "intermediate" && typeof event.content === "string") {
+					const content = event.content;
+					if (content.length > 0) {
+						intermediateResponses.push(content);
+						if (typeof callbacks.onIntermediate === "function") {
+							callbacks.onIntermediate(intermediateResponses.length, intermediateResponses);
+						}
+						if (typeof callbacks.onDetailsUpdate === "function") {
+							callbacks.onDetailsUpdate({
+								responseIntermediate: intermediateResponses,
+								toolCalls
+							});
+						}
+					}
+					return;
+				}
+
+				if (type === "tool_start") {
+					toolCalls.push({
+						event_id: event?.event_id || null,
+						tool_name: event?.tool_name || "(unknown tool)",
+						tool_call_id: event?.tool_call_id || null,
+						parent_tool_call_id: event?.parent_tool_call_id || null,
+						arguments: event?.arguments || {},
+						timestamp: event?.timestamp || new Date().toISOString()
+					});
+					if (typeof callbacks.onToolCount === "function") {
+						callbacks.onToolCount(toolCalls.length);
+					}
+					if (typeof callbacks.onDetailsUpdate === "function") {
+						callbacks.onDetailsUpdate({
+							responseIntermediate: intermediateResponses,
+							toolCalls
+						});
+					}
+					return;
+				}
+
+				if (type === "tool_end") {
+					const toolCallId = event?.tool_call_id || null;
+					if (toolCallId) {
+						const existing = toolCalls.find((item) => item?.tool_call_id === toolCallId);
+						if (existing) {
+							existing.result = event?.result ?? null;
+							existing.timestamp = event?.timestamp || existing.timestamp;
+						}
+					}
+					if (typeof callbacks.onDetailsUpdate === "function") {
+						callbacks.onDetailsUpdate({
+							responseIntermediate: intermediateResponses,
+							toolCalls
+						});
+					}
+					return;
+				}
+
+				if (type === "error") {
+					throw new Error(typeof event?.content === "string" && event.content.trim() ? event.content : "Streaming request failed.");
+				}
+
+				if (type === "done") {
+					doneReceived = true;
+				}
+			};
+
+			while (!doneReceived) {
+				const { value, done } = await reader.read();
+				if (done) break;
+
+				buffer += decoder.decode(value, { stream: true });
+				let boundary = buffer.indexOf("\n\n");
+				while (boundary !== -1) {
+					const block = buffer.slice(0, boundary);
+					buffer = buffer.slice(boundary + 2);
+
+					const lines = block.split("\n");
+					for (const line of lines) {
+						if (!line.startsWith("data:")) continue;
+						const payload = line.slice(5).trim();
+						if (!payload) continue;
+
+						let event;
+						try {
+							event = JSON.parse(payload);
+						} catch {
+							continue;
+						}
+
+						handleEvent(event);
+						if (doneReceived) break;
+					}
+
+					if (doneReceived) break;
+					boundary = buffer.indexOf("\n\n");
+				}
 			}
 
 			const details = normalizeDetails({
-				responseIntermediate: Array.isArray(body?.response_intermediate) ? body.response_intermediate : [],
-				toolCalls: Array.isArray(body?.tool_calls) ? body.tool_calls : []
+				responseIntermediate: intermediateResponses,
+				toolCalls
 			});
 
 			return {
-				text: getMessageFromBody(body),
+				text: finalMessage || streamText || "(No response body)",
 				sessionId: state.sessionId,
 				details
 			};
@@ -1054,21 +1283,70 @@
 
 			renderBubble("you", prompt, "You");
 			promptInputEl.value = "";
-			setLoading(true);
+			setLoading(true, { showWaitingBubble: false });
+			const streamingBubble = renderBubble("copilot", "", "Copilot • streaming...");
+			const liveDetails = {
+				responseIntermediate: [],
+				toolCalls: []
+			};
 
 			try {
-				const result = await sendMessage(prompt);
+				let currentToolCount = 0;
+				let currentIntermediateCount = 0;
+				const updateStreamingMeta = () => {
+					const segments = ["Copilot", "streaming..."];
+					if (currentToolCount > 0) {
+						segments.push(`${currentToolCount} tool call${currentToolCount === 1 ? "" : "s"}`);
+					}
+					if (currentIntermediateCount > 0) {
+						segments.push(`${currentIntermediateCount} intermediate${currentIntermediateCount === 1 ? "" : "s"}`);
+					}
+					setBubbleMeta(streamingBubble.bubble, segments.join(" • "));
+				};
+
+				const result = await sendMessage(prompt, {
+					onDelta: (text) => {
+						setBubbleText(streamingBubble.bubble, "copilot", text);
+						scrollChatToBottom();
+					},
+					onToolCount: (count) => {
+						currentToolCount = count;
+						updateStreamingMeta();
+					},
+					onIntermediate: (count, responses) => {
+						currentIntermediateCount = count;
+						updateStreamingMeta();
+						setBubbleIntermediates(streamingBubble.bubble, responses);
+						scrollChatToBottom();
+					},
+					onDetailsUpdate: (detailsSnapshot) => {
+						const normalizedLive = normalizeDetails(detailsSnapshot);
+						liveDetails.responseIntermediate = normalizedLive.responseIntermediate;
+						liveDetails.toolCalls = normalizedLive.toolCalls;
+						attachBubbleDetails(streamingBubble.bubble, liveDetails);
+						refreshOpenDetails(liveDetails);
+					}
+				});
 				const copilotMeta = hasDetails(result.details)
 					? "Copilot • click bubble for details"
 					: "Copilot";
-				renderBubble("copilot", result.text, copilotMeta, result.details);
+				setBubbleText(streamingBubble.bubble, "copilot", result.text);
+				setBubbleIntermediates(streamingBubble.bubble, []);
+				setBubbleMeta(streamingBubble.bubble, copilotMeta);
+				liveDetails.responseIntermediate = result.details.responseIntermediate;
+				liveDetails.toolCalls = result.details.toolCalls;
+				attachBubbleDetails(streamingBubble.bubble, liveDetails);
+				refreshOpenDetails(liveDetails);
 				if (result.sessionId) {
 					setStatus(`Connected • Session ${result.sessionId}`);
 				} else {
 					setStatus("Connected");
 				}
 			} catch (error) {
-				renderBubble("copilot", `Request failed. ${error.message}`, "Copilot");
+				setBubbleText(streamingBubble.bubble, "copilot", `Request failed. ${error.message}`);
+				setBubbleIntermediates(streamingBubble.bubble, []);
+				setBubbleMeta(streamingBubble.bubble, "Copilot");
+				attachBubbleDetails(streamingBubble.bubble, null);
 				setStatus(error.message, true);
 			} finally {
 				setLoading(false);

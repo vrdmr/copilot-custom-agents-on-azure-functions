@@ -10,7 +10,7 @@ This repo demonstrates an experimental new runtime that lets you deploy the same
 
 - Deploy markdown-based agents as an Azure Functions app
 - Choose from GitHub models or Microsoft Foundry models to power your agent
-- Built-in HTTP API for chatting with your agent (`POST /agent/chat`)
+- Built-in HTTP APIs for chatting with your agent (`POST /agent/chat`, `POST /agent/chatstream`)
 - Built-in MCP server endpoint for remote MCP clients (`/runtime/webhooks/mcp`)
 - Built-in single-page chat UI
 - Automatic session persistence with Azure Files
@@ -259,7 +259,10 @@ Use `inputs` with `password: true` so the MCP key isn't hardcoded in the file.
 
 ## Using the API
 
-Once deployed, your agent is available as an HTTP API. It exposes a single endpoint: `POST /agent/chat`
+Once deployed, your agent is available as an HTTP API with two chat endpoints:
+
+- `POST /agent/chat` for standard JSON responses
+- `POST /agent/chatstream` for streaming Server-Sent Events (SSE)
 
 ### Basic Request
 
@@ -296,6 +299,42 @@ curl -X POST "https://<your-app>.azurewebsites.net/agent/chat?code=<function-key
 
 If you omit `x-ms-session-id`, a new session is created automatically and its ID is returned in the response. See `test/test.cloud.http` for more examples.
 
+### Streaming Endpoint (SSE)
+
+Use `POST /agent/chatstream` to receive responses incrementally as SSE events.
+
+```bash
+curl -N -X POST "https://<your-app>.azurewebsites.net/agent/chatstream?code=<function-key>" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{"prompt": "Give me a quick summary of Azure Functions pricing in 3 bullets."}'
+```
+
+To resume an existing session, pass `x-ms-session-id` the same way as `/agent/chat`.
+
+Typical streamed event types include:
+
+- `session` (contains `session_id`)
+- `delta` (incremental text chunks)
+- `intermediate` (intermediate reasoning/response snippets)
+- `tool_start` / `tool_end` (tool execution lifecycle metadata)
+- `message` (final full response)
+- `done` (stream completion)
+
+Example SSE payload sequence:
+
+```text
+data: {"type":"session","session_id":"..."}
+
+data: {"type":"delta","content":"Hello"}
+
+data: {"type":"tool_start","tool_name":"bash","tool_call_id":"..."}
+
+data: {"type":"message","content":"Hello...final"}
+
+data: {"type":"done"}
+```
+
 ### Getting the URL and Chat Function Key
 
 After deployment, get the function app hostname and the `chat` function key using the Azure CLI:
@@ -330,4 +369,4 @@ Use these values to populate `@baseUrl` and `@defaultKey` in `test/test.cloud.ht
 3. Explore the `src` folder to see the agent definition
 4. Run `azd up` to deploy to Azure Functions
 5. Open your cloud-hosted chat UI at `/`
-6. Optionally call `/agent/chat` directly (see `test/test.cloud.http` for examples)
+6. Optionally call `/agent/chat` (JSON) or `/agent/chatstream` (SSE) directly (see `test/test.cloud.http` for examples)

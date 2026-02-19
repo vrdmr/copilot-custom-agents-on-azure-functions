@@ -246,13 +246,34 @@ async def run_copilot_agent_stream(
             delta = getattr(event.data, "delta_content", None)
             if delta:
                 queue.put_nowait({"type": "delta", "content": delta})
+        elif event_type == "assistant.reasoning_delta":
+            reasoning_delta = getattr(event.data, "delta_content", None)
+            if reasoning_delta:
+                queue.put_nowait({"type": "intermediate", "content": reasoning_delta})
         elif event_type == "assistant.message":
-            queue.put_nowait({"type": "message", "content": event.data.content})
+            message_content = getattr(event.data, "content", "")
+            if isinstance(message_content, str) and message_content.strip():
+                queue.put_nowait({"type": "intermediate", "content": message_content})
+            queue.put_nowait({"type": "message", "content": message_content})
         elif event_type == "tool.execution_start":
             queue.put_nowait({
                 "type": "tool_start",
+                "event_id": str(event.id) if hasattr(event, "id") and event.id else None,
+                "timestamp": event.timestamp.isoformat() if hasattr(event, "timestamp") and event.timestamp else None,
                 "tool_name": getattr(event.data, "tool_name", None),
                 "tool_call_id": getattr(event.data, "tool_call_id", None),
+                "parent_tool_call_id": getattr(event.data, "parent_tool_call_id", None),
+                "arguments": getattr(event.data, "arguments", None),
+            })
+        elif event_type == "tool.execution_end":
+            queue.put_nowait({
+                "type": "tool_end",
+                "event_id": str(event.id) if hasattr(event, "id") and event.id else None,
+                "timestamp": event.timestamp.isoformat() if hasattr(event, "timestamp") and event.timestamp else None,
+                "tool_name": getattr(event.data, "tool_name", None),
+                "tool_call_id": getattr(event.data, "tool_call_id", None),
+                "parent_tool_call_id": getattr(event.data, "parent_tool_call_id", None),
+                "result": getattr(event.data, "result", None),
             })
         elif event_type == "session.idle":
             queue.put_nowait(_STREAM_SENTINEL)
