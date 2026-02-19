@@ -167,6 +167,7 @@ module api './app/api.bicep' = {
       {
         GITHUB_TOKEN: githubToken
         ENABLE_MULTIPLATFORM_BUILD: 'true'
+        PYTHON_ENABLE_INIT_INDEXING: '1'
         AzureWebJobsDisableHomepage: 'true'
       },
       deployFoundry ? {
