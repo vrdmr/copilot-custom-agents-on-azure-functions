@@ -2,9 +2,21 @@
 
 > **⚠️ This is an experimental feature.** The agent runtime, deployment model, and APIs described here are under active development and subject to change.
 
-Today, you can build custom agents with GitHub Copilot right in VS Code. You define your agent's personality and behavior in a markdown file (`AGENTS.md`), add skills as knowledge files, configure MCP servers for live data and actions, and even write custom tools as plain Python functions. All of that just works in Copilot Chat — locally, on your machine.
+Today, you can build custom agents with GitHub Copilot. You define your agent's personality and behavior in a markdown file (`AGENTS.md`), add skills as knowledge files, and configure MCP servers for live data and actions. All of that just works in VS Code or Copilot CLI — locally, on your machine.
 
-**Hosting your agent in the cloud**
+This repo demonstrates an experimental new runtime that lets you deploy the same markdown-based agent project to Azure Functions with zero code changes. The agent runs in the cloud, behind an HTTP API, and can be called from anywhere.
+
+**Key features**
+
+- Deploy markdown-based agents as an Azure Functions app
+- Choose from GitHub models or Microsoft Foundry models to power your agent
+- Built-in HTTP API for chatting with your agent (`POST /agent/chat`)
+- Built-in single-page chat UI
+- Automatic session persistence with Azure Files
+- Run prompts on a schedule using timer triggers
+- Give your agent custom tools written in plain Python
+
+**Hosting your agent in Azure Functions**
 
 Azure Functions is a serverless compute platform that already supports runtimes like JavaScript, Python, and .NET. An agent project with `AGENTS.md`, skills, and MCP servers is just another workload. This experiment adds a new runtime to Azure Functions that natively understands and runs markdown-based agent projects.
 
@@ -14,7 +26,7 @@ Development workflow:
 2. Deploy the same project to Azure Functions with `azd up`
 3. Your agent is now a cloud-hosted HTTP API — no rewrites needed
 
-This repo includes a sample **Microsoft expert agent** that helps developers and architects look up Azure pricing, estimate costs, and find answers in official Microsoft Learn documentation.
+This repo includes a sample **Microsoft expert agent** that helps developers and architects look up Azure pricing, estimate costs, and answer questions using official Microsoft Learn documentation.
 
 ## Project Structure
 
@@ -31,7 +43,7 @@ src/                       # Your agent — a pure Copilot project, no cloud kno
 
 The `src` folder contains **only** your agent definition — no Copilot SDK, no Azure Functions code, no cloud infrastructure concerns. It's just a standard markdown-based agent project. The agent format is the programming model.
 
-`AGENTS.md` supports optional YAML frontmatter. The runtime strips frontmatter before passing instructions to Copilot, and uses frontmatter metadata for runtime features (for example, timer triggers).
+`AGENTS.md` supports optional YAML frontmatter. The frontmatter can be used to take your agent beyond HTTP or a chat interface by integrating with Azure Functions' event-driven programming model. For example, you can define timer-triggered functions that run on a [schedule](#timer-triggers-from-agentsmd-frontmatter) without needing to write any Azure Functions code.
 
 ## Running Locally in VS Code
 
@@ -46,7 +58,7 @@ Your agent's instructions from `AGENTS.md`, skills from `.github/skills/`, and M
 
 ### Prerequisites: Create a GitHub Personal Access Token
 
-The cloud runtime requires a GitHub token with Copilot permissions. GitHub Copilot requires authentication to persist and resume sessions (even though sessions are stored locally). If you choose a GitHub model (see [Model Selection](#model-selection)), the token is also used to access the model.
+The Azure Functions deployment requires a GitHub token with Copilot permissions. GitHub Copilot SDK (which is used by Functions to run your agent) currently requires authentication to persist and resume sessions (even though sessions are stored locally). If you choose a GitHub model to power your agent (see [Model Selection](#model-selection)), the token is also used to access the model.
 
 1. Go to https://github.com/settings/personal-access-tokens/new
 2. Under **Permissions**, click **+ Add permissions**
@@ -61,14 +73,14 @@ From the terminal, run the following command:
 azd up
 ```
 
-Within minutes, you have a fully deployed agent behind an HTTP API. The same source code that runs locally in Copilot Chat now runs remotely on Azure Functions.
+Within minutes, you have a fully deployed agent behind an HTTP API and a built-in chat UI. The same source code that runs locally in Copilot Chat now runs remotely on Azure Functions.
 
 During deployment, you'll be prompted for:
 
 | Prompt | Description |
 |--------|-------------|
-| **GitHub Token** | Your GitHub PAT with Copilot Requests permission (required — used for session persistence and GitHub model access) |
 | **Azure Location** | Azure region for deployment |
+| **GitHub Token** | Your GitHub PAT with Copilot Requests permission (required — used for session persistence and GitHub model access) |
 | **Model Selection** | Which model to use (see below) |
 | **VNet Enabled** | Whether to deploy with VNet integration |
 
@@ -124,6 +136,46 @@ When `logger: true`, the timer logs full agent output via `logging.info`, includ
 
 Timer functions are registered at startup from frontmatter and run in the same runtime as `/agent/chat`.
 
+## Building Custom Tools with Python
+
+You can add custom tools by dropping plain Python files into `src/tools/`.
+
+Example:
+
+```python
+from pydantic import BaseModel, Field
+
+
+class CostEstimatorParams(BaseModel):
+    unit_price: float = Field(description="Retail price per unit")
+    unit_of_measure: str = Field(description="Unit of measure, e.g. '1 Hour'")
+    quantity: float = Field(description="Monthly quantity")
+
+
+async def cost_estimator(params: CostEstimatorParams) -> str:
+    """Estimate monthly and annual costs from unit price and usage."""
+    monthly_cost = params.unit_price * params.quantity
+    annual_cost = monthly_cost * 12
+    return f"Monthly: ${monthly_cost:.4f} | Annual: ${annual_cost:.4f}"
+```
+
+How tool discovery works:
+
+- At runtime, the function app scans `tools/*.py` for tool definitions.
+- It loads module-level functions defined in that module and filters out names that start with `_`.
+- The function docstring becomes the tool description (fallback: `Tool: <function_name>` if no docstring).
+- It registers only one function per file (the first function returned from discovery, which is name-sorted).
+- If a tool module fails to import/load, the runtime logs the error and continues.
+
+Guidelines:
+
+- Keep tool functions focused and deterministic.
+- Prefer a typed params model (for example, a Pydantic `BaseModel`) and pass it as the function argument.
+- Use clear type hints and docstrings.
+- Add any Python dependencies your tools need to `src/requirements.txt`.
+
+Important: custom Python tools run in the cloud runtime (Azure Functions). They are not executed in local Copilot Chat.
+
 ## Using the Chat UI (Root Route)
 
 After deployment, open your function app root URL:
@@ -137,7 +189,7 @@ The root route serves a built-in single-page chat UI.
 At first load, enter:
 
 - Base URL (typically your function app URL)
-- Chat function key
+- Chat function key (see next section for how to get this)
 
 These values are stored in browser local storage. You can reopen/edit them later via the gear icon.
 
@@ -209,31 +261,17 @@ az functionapp function keys list --name "$FUNC_NAME" --resource-group "$RG" --f
 
 Use these values to populate `@baseUrl` and `@defaultKey` in `test/test.cloud.http`.
 
-## What Else You Can Do
-
-Because the agent is deployed to Azure Functions, you can:
-
-- **Expose it as an MCP endpoint** for other agents to call
-- **Add enterprise authentication** with Microsoft Entra ID
-- **Scale it based on demand** with serverless auto-scaling
-- **Write custom Python tools** that get deployed alongside the agent (see `src/tools/` for an example)
-
 ## Known Limitations
 
-- **This is an experiment.** The runtime, APIs, and deployment model are under active development and may change significantly.
-- **Python tools in `src/tools/` do not work locally.** Custom Python tools only run in the cloud runtime. They are fully functional after deploying with `azd up`.
+- **Python tools in `src/tools/` do not work locally** since they're not natively supported by Copilot. They are fully functional after deploying with `azd up`.
 - **Use `azd up`, not `azd provision` + `azd deploy` separately.** The pre-package hook scripts don't run in the correct sequence when provision and deploy are executed independently.
 - **Windows is not supported.** The packaging hooks are shell scripts (`.sh`) and require macOS, Linux, or WSL.
-
-## The Vision
-
-The developer focuses entirely on the agent logic — `AGENTS.md`, skills, MCP servers, tools — and the platform handles hosting, scaling, auth, networking, and monitoring. The same source code runs locally in GitHub Copilot and remotely as an HTTP API on Azure Functions. No SDKs. No cloud frameworks. No rewrites. The agent format is the programming model.
 
 ## Try It
 
 1. Clone this repo
-2. Explore the `src` folder to see the agent definition
-3. Open `src` in VS Code and chat with the agent locally (MCP and skills work; Python tools require cloud deployment)
+2. Open `src` in VS Code and chat with the agent locally (MCP and skills work; Python tools require cloud deployment)
+3. Explore the `src` folder to see the agent definition
 4. Run `azd up` to deploy to Azure Functions
 5. Open your cloud-hosted chat UI at `/`
 6. Optionally call `/agent/chat` directly (see `test/test.cloud.http` for examples)
