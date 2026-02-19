@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 from dataclasses import dataclass, field
@@ -62,10 +63,11 @@ def _build_session_config(
     model: str = DEFAULT_MODEL,
     config_dir: Optional[str] = None,
     session_id: Optional[str] = None,
+    streaming: bool = False,
 ) -> SessionConfig:
     session_config: SessionConfig = {
         "model": model,
-        "streaming": False,
+        "streaming": streaming,
         "tools": _REGISTERED_TOOLS_CACHE,  # type: ignore
         "system_message": {"mode": "replace", "content": _AGENTS_MD_CONTENT_CACHE},
     }
@@ -130,6 +132,7 @@ async def run_copilot_agent(
     timeout: float = DEFAULT_TIMEOUT,
     model: str = DEFAULT_MODEL,
     session_id: Optional[str] = None,
+    streaming: bool = False,
 ) -> AgentResult:
     config_dir = resolve_config_dir()
     client = await CopilotClientManager.get_client()
@@ -143,11 +146,9 @@ async def run_copilot_agent(
         if session_id:
             logging.info(f"Creating new session with provided ID: {session_id}")
         session_config = _build_session_config(
-            model=model, config_dir=config_dir, session_id=session_id
+            model=model, config_dir=config_dir, session_id=session_id, streaming=streaming
         )
         session = await client.create_session(session_config)
-
-    is_streaming = False  # streaming is always False in current config
 
     response_content: List[str] = []
     tool_calls: List[Dict[str, Any]] = []
@@ -162,10 +163,10 @@ async def run_copilot_agent(
 
         if event_type == "assistant.message":
             response_content.append(event.data.content)
-        elif event_type == "assistant.message_delta" and is_streaming:
+        elif event_type == "assistant.message_delta" and streaming:
             if event.data.delta_content:
                 response_content.append(event.data.delta_content)
-        elif event_type == "assistant.reasoning_delta" and is_streaming:
+        elif event_type == "assistant.reasoning_delta" and streaming:
             if hasattr(event.data, "delta_content") and event.data.delta_content:
                 reasoning_content.append(event.data.delta_content)
         elif event_type == "tool.execution_start":
@@ -183,13 +184,101 @@ async def run_copilot_agent(
             done.set()
 
     session.on(on_event)
-    await session.send_and_wait({"prompt": prompt}, timeout=timeout)
 
-    return AgentResult(
-        session_id=session.session_id,
-        content=response_content[-1] if response_content else "",
-        content_intermediate=response_content[-6:-1] if len(response_content) > 1 else [],
-        tool_calls=tool_calls,
-        reasoning="".join(reasoning_content) if reasoning_content else None,
-        events=events_log,
-    )
+    if streaming:
+        logging.info(f"Starting streaming session with ID: {session.session_id}")
+        return AgentResult(
+            session_id=session.session_id,
+            content=response_content[-1] if response_content else "",
+            content_intermediate=response_content[-6:-1] if len(response_content) > 1 else [],
+            tool_calls=tool_calls,
+            reasoning="".join(reasoning_content) if reasoning_content else None,
+            events=events_log,
+        )
+
+    else:
+        await session.send_and_wait({"prompt": prompt}, timeout=timeout)
+
+        return AgentResult(
+            session_id=session.session_id,
+            content=response_content[-1] if response_content else "",
+            content_intermediate=response_content[-6:-1] if len(response_content) > 1 else [],
+            tool_calls=tool_calls,
+            reasoning="".join(reasoning_content) if reasoning_content else None,
+            events=events_log,
+        )
+
+
+_STREAM_SENTINEL = object()
+
+
+async def run_copilot_agent_stream(
+    prompt: str,
+    timeout: float = DEFAULT_TIMEOUT,
+    model: str = DEFAULT_MODEL,
+    session_id: Optional[str] = None,
+):
+    """Async generator that yields SSE-formatted events as the agent streams a response.
+
+    Yields strings like 'data: {"type": "delta", ...}\\n\\n' suitable for StreamingResponse.
+    """
+    config_dir = resolve_config_dir()
+    client = await CopilotClientManager.get_client()
+
+    if session_id and session_exists(config_dir, session_id):
+        logging.info(f"[stream] Resuming existing session: {session_id}")
+        resume_config = _build_resume_config(model=model, config_dir=config_dir)
+        session = await client.resume_session(session_id, resume_config)
+    else:
+        if session_id:
+            logging.info(f"[stream] Creating new session with provided ID: {session_id}")
+        session_config = _build_session_config(
+            model=model, config_dir=config_dir, session_id=session_id, streaming=True
+        )
+        session = await client.create_session(session_config)
+
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def on_event(event):
+        event_type = event.type.value if hasattr(event.type, "value") else str(event.type)
+
+        if event_type == "assistant.message_delta":
+            delta = getattr(event.data, "delta_content", None)
+            if delta:
+                queue.put_nowait({"type": "delta", "content": delta})
+        elif event_type == "assistant.message":
+            queue.put_nowait({"type": "message", "content": event.data.content})
+        elif event_type == "tool.execution_start":
+            queue.put_nowait({
+                "type": "tool_start",
+                "tool_name": getattr(event.data, "tool_name", None),
+                "tool_call_id": getattr(event.data, "tool_call_id", None),
+            })
+        elif event_type == "session.idle":
+            queue.put_nowait(_STREAM_SENTINEL)
+
+    session.on(on_event)
+
+    # Yield the session ID first so the client knows it immediately
+    yield f"data: {json.dumps({'type': 'session', 'session_id': session.session_id})}\n\n"
+
+    # Fire-and-forget: send the prompt, events arrive via on_event callback
+    await session.send({"prompt": prompt})
+
+    # Drain the queue until session.idle sentinel arrives or timeout
+    try:
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            remaining = deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Timeout waiting for response'})}\n\n"
+                break
+
+            item = await asyncio.wait_for(queue.get(), timeout=remaining)
+            if item is _STREAM_SENTINEL:
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                break
+
+            yield f"data: {json.dumps(item)}\n\n"
+    except asyncio.TimeoutError:
+        yield f"data: {json.dumps({'type': 'error', 'content': 'Timeout waiting for response'})}\n\n"
