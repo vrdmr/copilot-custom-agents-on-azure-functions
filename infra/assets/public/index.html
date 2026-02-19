@@ -823,7 +823,12 @@
 			if (role === "copilot" && hasDetails(details)) {
 				bubble.classList.add("has-details");
 				bubble.title = "Click to view tool calls and intermediate responses";
-				bubble.addEventListener("click", () => showDetails(details));
+				bubble.addEventListener("click", (event) => {
+					if (event.target instanceof Element && event.target.closest("a")) {
+						return;
+					}
+					showDetails(details);
+				});
 			}
 
 			if (meta) {
