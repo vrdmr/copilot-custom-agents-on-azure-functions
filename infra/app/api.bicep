@@ -99,6 +99,12 @@ module api 'br/public:avm/res/web/site:0.15.1' = {
     }
     siteConfig: {
       alwaysOn: false
+      cors: {
+        allowedOrigins: [
+          'http://localhost:8000'
+        ]
+        supportCredentials: true
+      }
     }
     virtualNetworkSubnetId: !empty(virtualNetworkSubnetId) ? virtualNetworkSubnetId : null
     appSettingsKeyValuePairs: allAppSettings
