@@ -20,7 +20,7 @@ This repo includes a sample **Microsoft expert agent** that helps developers and
 
 ```
 src/                       # Your agent — a pure Copilot project, no cloud knowledge
-├── AGENTS.md             # Agent instructions and behavior
+├── AGENTS.md             # Agent instructions and behavior (+ optional frontmatter)
 ├── .github/skills/
 │   └── azure-pricing/    # Skill: fetch real-time Azure retail pricing
 │       └── SKILL.md
@@ -30,6 +30,8 @@ src/                       # Your agent — a pure Copilot project, no cloud kno
 ```
 
 The `src` folder contains **only** your agent definition — no Copilot SDK, no Azure Functions code, no cloud infrastructure concerns. It's just a standard markdown-based agent project. The agent format is the programming model.
+
+`AGENTS.md` supports optional YAML frontmatter. The runtime strips frontmatter before passing instructions to Copilot, and uses frontmatter metadata for runtime features (for example, timer triggers).
 
 ## Running Locally in VS Code
 
@@ -90,6 +92,63 @@ When running in Azure, agent sessions are automatically persisted to an Azure Fi
 
 Locally, sessions are stored in `~/.copilot/session-state/`.
 
+## Timer Triggers from `AGENTS.md` Frontmatter
+
+You can define scheduled agent runs directly in `src/AGENTS.md` frontmatter using a `functions` array.
+
+```yaml
+---
+functions:
+  - name: timerAgent
+    trigger: timer
+    schedule: "0 */2 * * * *"
+    prompt: "What's the price of a Standard_D4s_v5 VM in East US?"
+    logger: true
+---
+```
+
+Current behavior:
+
+- Only `trigger: timer` is supported right now. Other trigger types are explicitly rejected at startup.
+- `functions` section is optional.
+- `schedule` and `prompt` are required for timer entries.
+- `name` is optional (a safe unique name is generated if omitted).
+- `logger` is optional and defaults to `true`.
+
+When `logger: true`, the timer logs full agent output via `logging.info`, including:
+
+- `session_id`
+- final `response`
+- `response_intermediate`
+- `tool_calls`
+
+Timer functions are registered at startup from frontmatter and run in the same runtime as `/agent/chat`.
+
+## Using the Chat UI (Root Route)
+
+After deployment, open your function app root URL:
+
+```text
+https://<your-app>.azurewebsites.net/
+```
+
+The root route serves a built-in single-page chat UI.
+
+At first load, enter:
+
+- Base URL (typically your function app URL)
+- Chat function key
+
+These values are stored in browser local storage. You can reopen/edit them later via the gear icon.
+
+You can also prefill both values via URL hash:
+
+```text
+https://<your-app>.azurewebsites.net/#baseUrl=https%3A%2F%2F<your-app>.azurewebsites.net&key=<url-encoded-key>
+```
+
+On load, the page reads and stores these values, then removes the hash from the address bar.
+
 ## Using the API
 
 Once deployed, your agent is available as an HTTP API. It exposes a single endpoint: `POST /agent/chat`
@@ -129,9 +188,9 @@ curl -X POST "https://<your-app>.azurewebsites.net/agent/chat?code=<function-key
 
 If you omit `x-ms-session-id`, a new session is created automatically and its ID is returned in the response. See `test/test.cloud.http` for more examples.
 
-### Getting the URL and Function Key
+### Getting the URL and Chat Function Key
 
-After deployment, get the function app hostname and default key using the Azure CLI:
+After deployment, get the function app hostname and the `chat` function key using the Azure CLI:
 
 ```bash
 # Get the function app name from azd
@@ -141,10 +200,11 @@ FUNC_NAME=$(azd env get-value AZURE_FUNCTION_NAME)
 RG=$(az functionapp list --query "[?name=='$FUNC_NAME'].resourceGroup" -o tsv)
 
 # Get the base URL
-az functionapp show --name "$FUNC_NAME" --resource-group "$RG" --query defaultHostName -o tsv
+HOST=$(az functionapp show --name "$FUNC_NAME" --resource-group "$RG" --query defaultHostName -o tsv)
+echo "https://$HOST"
 
-# Get the default function key
-az functionapp keys list --name "$FUNC_NAME" --resource-group "$RG" --query functionKeys.default -o tsv
+# Get the chat function key
+az functionapp function keys list --name "$FUNC_NAME" --resource-group "$RG" --function-name chat --query default -o tsv
 ```
 
 Use these values to populate `@baseUrl` and `@defaultKey` in `test/test.cloud.http`.
@@ -175,4 +235,5 @@ The developer focuses entirely on the agent logic — `AGENTS.md`, skills, MCP s
 2. Explore the `src` folder to see the agent definition
 3. Open `src` in VS Code and chat with the agent locally (MCP and skills work; Python tools require cloud deployment)
 4. Run `azd up` to deploy to Azure Functions
-5. Call your cloud-hosted agent at `/agent/chat` (see `test/test.cloud.http` for examples)
+5. Open your cloud-hosted chat UI at `/`
+6. Optionally call `/agent/chat` directly (see `test/test.cloud.http` for examples)

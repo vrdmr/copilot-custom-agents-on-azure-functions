@@ -7,4 +7,7 @@ github-copilot-sdk==0.1.23
 # Pydantic for tool parameter validation
 pydantic>=2.0.0
 
+# Parse AGENTS.md frontmatter and body
+python-frontmatter>=1.1.0
+
 # azure-cli

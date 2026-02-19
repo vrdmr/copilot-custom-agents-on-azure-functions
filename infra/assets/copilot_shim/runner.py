@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from copilot import ResumeSessionConfig, SessionConfig
+import frontmatter
 
 from .client_manager import CopilotClientManager, _is_byok_mode
 from .config import resolve_config_dir, session_exists
@@ -35,9 +36,15 @@ def _load_agents_md_content() -> str:
 
     try:
         with open(agents_md_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        logging.info(f"Loaded AGENTS.md from {agents_md_path} ({len(content)} chars)")
-        logging.info(f"AGENTS.md content:\n{content}")
+            raw_content = f.read()
+
+        parsed = frontmatter.loads(raw_content)
+        content = (parsed.content or "").strip()
+        metadata_count = len(parsed.metadata) if parsed.metadata else 0
+
+        logging.info(
+            f"Loaded AGENTS.md from {agents_md_path} ({len(raw_content)} chars, frontmatter keys={metadata_count}, body chars={len(content)})"
+        )
         return content
     except Exception as e:
         logging.warning(f"Failed to read AGENTS.md: {e}")
