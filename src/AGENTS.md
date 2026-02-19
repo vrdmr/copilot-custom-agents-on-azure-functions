@@ -4,7 +4,7 @@ description: An agent that provides expert guidance on Microsoft and Azure techn
 functions:
   - name: dailyPriceCheck
     trigger: timer
-    schedule: "0 */2 * * * *"
+    schedule: "0 0 * * * *"
     prompt: "What's the price of a Standard_D4s_v5 VM in East US?"
     logger: true
 ---
