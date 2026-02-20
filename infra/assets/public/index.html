@@ -1144,6 +1144,34 @@
 			const toolCalls = [];
 			const seenToolStartKeys = new Set();
 			let pendingIntermediateLineBreak = false;
+			let lastStreamEventKey = null;
+
+			const getStreamEventKey = (event) => {
+				const type = event?.type || "";
+				if (!type) return null;
+
+				if (event?.event_id) {
+					return `${type}|event:${event.event_id}`;
+				}
+
+				if (event?.tool_call_id) {
+					return `${type}|tool:${event.tool_call_id}`;
+				}
+
+				if (type === "delta" || type === "message" || type === "intermediate") {
+					return `${type}|content:${String(event?.content || "")}`;
+				}
+
+				if (type === "session") {
+					return `${type}|session:${String(event?.session_id || "")}`;
+				}
+
+				if (type === "done" || type === "error") {
+					return `${type}|${String(event?.content || "")}`;
+				}
+
+				return `${type}|${JSON.stringify(event)}`;
+			};
 
 			const handleEvent = (event) => {
 				const type = event?.type;
@@ -1270,6 +1298,12 @@
 						} catch {
 							continue;
 						}
+
+						const eventKey = getStreamEventKey(event);
+						if (eventKey && eventKey === lastStreamEventKey) {
+							continue;
+						}
+						lastStreamEventKey = eventKey;
 
 						handleEvent(event);
 						if (doneReceived) break;

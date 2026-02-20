@@ -239,9 +239,21 @@ async def run_copilot_agent_stream(
         session = await client.create_session(session_config)
 
     queue: asyncio.Queue = asyncio.Queue()
+    accept_events = False
+    seen_event_ids: set[str] = set()
 
     def on_event(event):
+        nonlocal accept_events
         event_type = event.type.value if hasattr(event.type, "value") else str(event.type)
+        event_id = str(event.id) if hasattr(event, "id") and event.id else None
+
+        if not accept_events:
+            return
+
+        if event_id:
+            if event_id in seen_event_ids:
+                return
+            seen_event_ids.add(event_id)
 
         if event_type == "assistant.message_delta":
             delta = getattr(event.data, "delta_content", None)
@@ -283,6 +295,7 @@ async def run_copilot_agent_stream(
     yield f"data: {json.dumps({'type': 'session', 'session_id': session.session_id})}\n\n"
 
     # Fire-and-forget: send the prompt, events arrive via on_event callback
+    accept_events = True
     await session.send({"prompt": prompt})
 
     # Drain the queue until session.idle sentinel arrives or timeout
